@@ -3,7 +3,7 @@ use crate::ffi::Py_ssize_t;
 use crate::ffi_ptr_ext::FfiPtrExt;
 use crate::instance::{Borrowed, Bound};
 use crate::py_result_ext::PyResultExt;
-use crate::types::{PyAny, PyAnyMethods, PyList, PyMapping};
+use crate::types::{PyAny, PyAnyMethods, PyIterator, PyList, PyMapping, PyTuple};
 use crate::{ffi, BoundObject, IntoPyObject, Python};
 
 /// Represents a Python `dict`.
@@ -433,20 +433,24 @@ fn dict_len(dict: &Bound<'_, PyDict>) -> Py_ssize_t {
 /// PyO3 implementation of an iterator for a Python `dict` object.
 pub struct BoundDictIterator<'py> {
     dict: Bound<'py, PyDict>,
-    inner: DictIterImpl,
+    inner: DictIterImpl<'py>,
 }
 
-enum DictIterImpl {
+enum DictIterImpl<'py> {
     DictIter {
         ppos: ffi::Py_ssize_t,
         di_used: ffi::Py_ssize_t,
         remaining: ffi::Py_ssize_t,
     },
+    ItemIter {
+        iter: Bound<'py, PyIterator>,
+        remaining: ffi::Py_ssize_t,
+    },
 }
 
-impl DictIterImpl {
+impl<'py> DictIterImpl<'py> {
     #[inline]
-    fn next<'py>(
+    fn next(
         &mut self,
         dict: &Bound<'py, PyDict>,
     ) -> Option<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
@@ -500,6 +504,15 @@ impl DictIterImpl {
                     None
                 }
             }),
+            Self::ItemIter { remaining, iter } => {
+                *remaining = remaining.saturating_sub(1);
+                iter.next().map(Result::unwrap).map(|tuple| {
+                    let tuple = tuple.downcast::<PyTuple>().unwrap();
+                    let key = tuple.get_item(0).unwrap();
+                    let value = tuple.get_item(1).unwrap();
+                    (key, value)
+                })
+            }
         }
     }
 
@@ -511,6 +524,7 @@ impl DictIterImpl {
     {
         match self {
             Self::DictIter { .. } => crate::sync::with_critical_section(dict, || f(self)),
+            Self::ItemIter { .. } => f(self),
         }
     }
 }
@@ -654,6 +668,7 @@ impl ExactSizeIterator for BoundDictIterator<'_> {
     fn len(&self) -> usize {
         match self.inner {
             DictIterImpl::DictIter { remaining, .. } => remaining as usize,
+            DictIterImpl::ItemIter { remaining, .. } => remaining as usize,
         }
     }
 }
@@ -662,13 +677,22 @@ impl<'py> BoundDictIterator<'py> {
     fn new(dict: Bound<'py, PyDict>) -> Self {
         let remaining = dict_len(&dict);
 
-        Self {
-            dict,
-            inner: DictIterImpl::DictIter {
-                ppos: 0,
-                di_used: remaining,
-                remaining,
-            },
+        if dict.is_exact_instance_of::<PyDict>() {
+            Self {
+                dict,
+                inner: DictIterImpl::DictIter {
+                    ppos: 0,
+                    di_used: remaining,
+                    remaining,
+                },
+            }
+        } else {
+            let items = dict.call_method0(intern!(dict.py(), "items")).unwrap();
+            let iter = PyIterator::from_object(&items).unwrap();
+            Self {
+                dict,
+                inner: DictIterImpl::ItemIter { iter, remaining },
+            }
         }
     }
 }
