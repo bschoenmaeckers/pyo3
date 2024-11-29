@@ -27,6 +27,12 @@ impl From<PyErr> for io::Error {
             } else if err.is_instance_of::<exceptions::PyTimeoutError>(py) {
                 io::ErrorKind::TimedOut
             } else {
+                #[cfg(io_error_more_83)]
+                if err.is_instance_of::<exceptions::PyIsADirectoryError>(py) {
+                    return io::ErrorKind::IsADirectory;
+                } else if err.is_instance_of::<exceptions::PyNotADirectoryError>(py) {
+                    return io::ErrorKind::NotADirectory;
+                }
                 io::ErrorKind::Other
             }
         });
@@ -54,6 +60,10 @@ impl From<io::Error> for PyErr {
             io::ErrorKind::AlreadyExists => exceptions::PyFileExistsError::new_err(err),
             io::ErrorKind::WouldBlock => exceptions::PyBlockingIOError::new_err(err),
             io::ErrorKind::TimedOut => exceptions::PyTimeoutError::new_err(err),
+            #[cfg(io_error_more_83)]
+            io::ErrorKind::IsADirectory => exceptions::PyIsADirectoryError::new_err(err),
+            #[cfg(io_error_more_83)]
+            io::ErrorKind::NotADirectory => exceptions::PyNotADirectoryError::new_err(err),
             _ => exceptions::PyOSError::new_err(err),
         }
     }
