@@ -756,7 +756,7 @@ where
     fn into_py_dict(self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let dict = PyDict::new(py);
         self.into_iter().try_for_each(|item| {
-            let (key, value) = item.unpack();
+            let (key, value) = item.unpack()?;
             dict.set_item(key, value)
         })?;
         Ok(dict)
@@ -767,7 +767,22 @@ where
 trait PyDictItem<'py> {
     type K: IntoPyObject<'py>;
     type V: IntoPyObject<'py>;
-    fn unpack(self) -> (Self::K, Self::V);
+    fn unpack(self) -> PyResult<(Self::K, Self::V)>;
+}
+
+impl<'py, T, E, K, V> PyDictItem<'py> for Result<T, E>
+where
+    T: PyDictItem<'py, K = K, V = V>,
+    E: Into<PyErr>,
+    K: IntoPyObject<'py>,
+    V: IntoPyObject<'py>,
+{
+    type K = K;
+    type V = V;
+
+    fn unpack(self) -> PyResult<(Self::K, Self::V)> {
+        self.map_err(Into::into)?.unpack()
+    }
 }
 
 impl<'py, K, V> PyDictItem<'py> for (K, V)
@@ -778,8 +793,8 @@ where
     type K = K;
     type V = V;
 
-    fn unpack(self) -> (Self::K, Self::V) {
-        (self.0, self.1)
+    fn unpack(self) -> PyResult<(Self::K, Self::V)> {
+        Ok((self.0, self.1))
     }
 }
 
@@ -791,8 +806,8 @@ where
     type K = &'a K;
     type V = &'a V;
 
-    fn unpack(self) -> (Self::K, Self::V) {
-        (&self.0, &self.1)
+    fn unpack(self) -> PyResult<(Self::K, Self::V)> {
+        Ok((&self.0, &self.1))
     }
 }
 
