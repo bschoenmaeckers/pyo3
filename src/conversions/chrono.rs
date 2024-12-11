@@ -54,7 +54,7 @@ use crate::types::{
     timezone_utc, PyDate, PyDateAccess, PyDateTime, PyDelta, PyDeltaAccess, PyTime, PyTimeAccess,
     PyTzInfo, PyTzInfoAccess,
 };
-use crate::{ffi, Bound, FromPyObject, IntoPyObjectExt, PyAny, PyErr, PyObject, PyResult, Python};
+use crate::{ffi, Bound, BoundObject, FromPyObject, IntoPyObjectExt, PyAny, PyErr, PyObject, PyResult, Python};
 #[cfg(Py_LIMITED_API)]
 use crate::{intern, DowncastError};
 #[allow(deprecated)]
@@ -466,14 +466,20 @@ where
             truncated_leap_second,
         } = (&self.naive_local().time()).into();
 
+        let fold = matches!(
+            self.timezone().offset_from_local_datetime(&self.naive_local()),
+            LocalResult::Ambiguous(_, latest) if self.offset().fix() == latest.fix()
+        );
+
         #[cfg(not(Py_LIMITED_API))]
-        let datetime = PyDateTime::new(py, year, month, day, hour, min, sec, micro, Some(tz))?;
+        let datetime =
+            PyDateTime::new_with_fold(py, year, month, day, hour, min, sec, micro, Some(tz), fold)?;
 
         #[cfg(Py_LIMITED_API)]
         let datetime = DatetimeTypes::try_get(py).and_then(|dt| {
             dt.datetime
                 .bind(py)
-                .call1((year, month, day, hour, min, sec, micro, tz))
+                .call1((year, month, day, hour, min, sec, micro, tz, fold as u8))
         })?;
 
         if truncated_leap_second {
