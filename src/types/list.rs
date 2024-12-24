@@ -509,6 +509,21 @@ impl<'py> Iterator for BoundListIterator<'py> {
         let len = self.len();
         (len, Some(len))
     }
+
+    #[inline]
+    fn last(self) -> Option<Self::Item>
+    where
+        Self: Sized,
+    {
+        let length = self.length.min(self.list.len());
+
+        if self.index < length {
+            let item = unsafe { self.get_item(length - 1) };
+            Some(item)
+        } else {
+            None
+        }
+    }
 }
 
 impl DoubleEndedIterator for BoundListIterator<'_> {
