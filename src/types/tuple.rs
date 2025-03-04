@@ -11,6 +11,7 @@ use crate::{
 };
 #[allow(deprecated)]
 use crate::{IntoPy, ToPyObject};
+use std::borrow::Cow;
 use std::iter::FusedIterator;
 #[cfg(feature = "nightly")]
 use std::num::NonZero;
@@ -655,9 +656,7 @@ macro_rules! tuple_conversion ({$length:expr,$(($refN:ident, $n:tt, $T:ident)),+
         }
 
         #[cfg(feature = "experimental-inspect")]
-        fn type_output() -> TypeInfo {
-            TypeInfo::Tuple(Some(vec![$( $T::type_output() ),+]))
-        }
+        const TYPE_OUTPUT: TypeInfo = TypeInfo::Tuple(Some(Cow::Borrowed(const{&[$( $T::TYPE_OUTPUT ),+]})));
     }
 
     impl <'a, 'py, $($T),+> IntoPyObject<'py> for &'a ($($T,)+)
@@ -674,9 +673,7 @@ macro_rules! tuple_conversion ({$length:expr,$(($refN:ident, $n:tt, $T:ident)),+
         }
 
         #[cfg(feature = "experimental-inspect")]
-        fn type_output() -> TypeInfo {
-            TypeInfo::Tuple(Some(vec![$( <&$T>::type_output() ),+]))
-        }
+        const TYPE_OUTPUT: TypeInfo = TypeInfo::Tuple(Some(Cow::Borrowed(const{&[$( <&$T>::TYPE_OUTPUT ),+]})));
     }
 
     impl<'py, $($T),+> crate::call::private::Sealed for ($($T,)+) where $($T: IntoPyObject<'py>,)+ {}
@@ -960,9 +957,7 @@ macro_rules! tuple_conversion ({$length:expr,$(($refN:ident, $n:tt, $T:ident)),+
         }
 
         #[cfg(feature = "experimental-inspect")]
-        fn type_input() -> TypeInfo {
-            TypeInfo::Tuple(Some(vec![$( $T::type_input() ),+]))
-        }
+        const TYPE_INPUT: TypeInfo = TypeInfo::Tuple(Some(Cow::Borrowed(const{&[$( $T::TYPE_INPUT ),+]})));
     }
 });
 

@@ -42,9 +42,7 @@ macro_rules! int_fits_larger_int {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_output() -> TypeInfo {
-                <$larger_type>::type_output()
-            }
+            const TYPE_OUTPUT: TypeInfo = <$larger_type>::TYPE_OUTPUT;
         }
 
         impl<'py> IntoPyObject<'py> for &$rust_type {
@@ -57,9 +55,7 @@ macro_rules! int_fits_larger_int {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_output() -> TypeInfo {
-                <$larger_type>::type_output()
-            }
+            const TYPE_OUTPUT: TypeInfo = <$larger_type>::TYPE_OUTPUT;
         }
 
         impl FromPyObject<'_> for $rust_type {
@@ -70,9 +66,7 @@ macro_rules! int_fits_larger_int {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_input() -> TypeInfo {
-                <$larger_type>::type_input()
-            }
+            const TYPE_INPUT: TypeInfo = <$larger_type>::TYPE_OUTPUT;
         }
     };
 }
@@ -132,9 +126,7 @@ macro_rules! int_convert_u64_or_i64 {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_output() -> TypeInfo {
-                TypeInfo::builtin("int")
-            }
+            const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
         }
         impl<'py> IntoPyObject<'py> for &$rust_type {
             type Target = PyInt;
@@ -147,9 +139,7 @@ macro_rules! int_convert_u64_or_i64 {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_output() -> TypeInfo {
-                TypeInfo::builtin("int")
-            }
+            const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
         }
         impl FromPyObject<'_> for $rust_type {
             fn extract_bound(obj: &Bound<'_, PyAny>) -> PyResult<$rust_type> {
@@ -157,9 +147,7 @@ macro_rules! int_convert_u64_or_i64 {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_input() -> TypeInfo {
-                Self::type_output()
-            }
+            const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
         }
     };
 }
@@ -195,9 +183,7 @@ macro_rules! int_fits_c_long {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_output() -> TypeInfo {
-                TypeInfo::builtin("int")
-            }
+            const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
         }
 
         impl<'py> IntoPyObject<'py> for &$rust_type {
@@ -211,9 +197,7 @@ macro_rules! int_fits_c_long {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_output() -> TypeInfo {
-                TypeInfo::builtin("int")
-            }
+            const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
         }
 
         impl<'py> FromPyObject<'py> for $rust_type {
@@ -224,9 +208,7 @@ macro_rules! int_fits_c_long {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_input() -> TypeInfo {
-                Self::type_output()
-            }
+            const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
         }
     };
 }
@@ -259,9 +241,7 @@ impl<'py> IntoPyObject<'py> for u8 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("int")
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
 
     #[inline]
     fn owned_sequence_into_pyobject<I>(
@@ -286,9 +266,7 @@ impl<'py> IntoPyObject<'py> for &'_ u8 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("int")
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
 
     #[inline]
     fn borrowed_sequence_into_pyobject<I>(
@@ -311,9 +289,7 @@ impl FromPyObject<'_> for u8 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        Self::type_output()
-    }
+    const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
 }
 
 int_fits_c_long!(i8);
@@ -421,9 +397,7 @@ mod fast_128bit_int_conversion {
                 }
 
                 #[cfg(feature = "experimental-inspect")]
-                fn type_output() -> TypeInfo {
-                    TypeInfo::builtin("int")
-                }
+                const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
             }
 
             impl<'py> IntoPyObject<'py> for &$rust_type {
@@ -437,9 +411,7 @@ mod fast_128bit_int_conversion {
                 }
 
                 #[cfg(feature = "experimental-inspect")]
-                fn type_output() -> TypeInfo {
-                    TypeInfo::builtin("int")
-                }
+                const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
             }
 
             impl FromPyObject<'_> for $rust_type {
@@ -490,9 +462,7 @@ mod fast_128bit_int_conversion {
                 }
 
                 #[cfg(feature = "experimental-inspect")]
-                fn type_input() -> TypeInfo {
-                    Self::type_output()
-                }
+                const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
             }
         };
     }
@@ -641,9 +611,7 @@ macro_rules! nonzero_int_impl {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_output() -> TypeInfo {
-                TypeInfo::builtin("int")
-            }
+            const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
         }
 
         impl<'py> IntoPyObject<'py> for &$nonzero_type {
@@ -657,9 +625,7 @@ macro_rules! nonzero_int_impl {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_output() -> TypeInfo {
-                TypeInfo::builtin("int")
-            }
+            const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("int");
         }
 
         impl FromPyObject<'_> for $nonzero_type {
@@ -670,9 +636,7 @@ macro_rules! nonzero_int_impl {
             }
 
             #[cfg(feature = "experimental-inspect")]
-            fn type_input() -> TypeInfo {
-                <$primitive_type>::type_input()
-            }
+            const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
         }
     };
 }

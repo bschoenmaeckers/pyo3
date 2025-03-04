@@ -58,9 +58,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::list_of(T::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::list_of_const(const { &T::TYPE_OUTPUT });
 }
 
 impl<'a, 'py, T> IntoPyObject<'py> for &'a Vec<T>
@@ -81,9 +79,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::list_of(<&T>::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::list_of_const(const { &<&T>::TYPE_OUTPUT });
 }
 
 #[cfg(test)]

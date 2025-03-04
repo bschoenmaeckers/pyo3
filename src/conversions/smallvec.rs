@@ -72,7 +72,7 @@ where
 
     #[cfg(feature = "experimental-inspect")]
     fn type_output() -> TypeInfo {
-        TypeInfo::list_of(A::Item::type_output())
+        TypeInfo::list_of_const(A::Item::type_output())
     }
 }
 
@@ -93,7 +93,7 @@ where
 
     #[cfg(feature = "experimental-inspect")]
     fn type_output() -> TypeInfo {
-        TypeInfo::list_of(<&A::Item>::type_output())
+        TypeInfo::list_of_const(<&A::Item>::type_output())
     }
 }
 
@@ -111,7 +111,7 @@ where
 
     #[cfg(feature = "experimental-inspect")]
     fn type_input() -> TypeInfo {
-        TypeInfo::sequence_of(A::Item::type_input())
+        TypeInfo::sequence_of_const(A::Item::type_input())
     }
 }
 

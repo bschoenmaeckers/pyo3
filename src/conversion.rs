@@ -226,9 +226,7 @@ pub trait IntoPyObject<'py>: Sized {
     /// For most types, the return value for this method will be identical to that of [`FromPyObject::type_input`].
     /// It may be different for some types, such as `Dict`, to allow duck-typing: functions return `Dict` but take `Mapping` as argument.
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::Any
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::Any;
 
     /// Converts sequence of Self into a Python object. Used to specialize `Vec<u8>`, `[u8; N]`
     /// and `SmallVec<[u8; N]>` as a sequence of bytes into a `bytes` object.
@@ -460,9 +458,7 @@ pub trait FromPyObject<'py>: Sized {
     /// [`IntoPyObject::type_output`]. It may be different for some types, such as `Dict`,
     /// to allow duck-typing: functions return `Dict` but take `Mapping` as argument.
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        TypeInfo::Any
-    }
+    const TYPE_INPUT: TypeInfo = TypeInfo::Any;
 }
 
 mod from_py_object_bound_sealed {
@@ -522,9 +518,7 @@ pub trait FromPyObjectBound<'a, 'py>: Sized + from_py_object_bound_sealed::Seale
     /// [`IntoPyObject::type_output`]. It may be different for some types, such as `Dict`,
     /// to allow duck-typing: functions return `Dict` but take `Mapping` as argument.
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        TypeInfo::Any
-    }
+    const TYPE_INPUT: TypeInfo = TypeInfo::Any;
 }
 
 impl<'py, T> FromPyObjectBound<'_, 'py> for T
@@ -536,9 +530,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        <T as FromPyObject>::type_input()
-    }
+    const TYPE_INPUT: TypeInfo = <T as FromPyObject>::TYPE_INPUT;
 }
 
 /// Identity conversion: allows using existing `PyObject` instances where

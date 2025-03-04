@@ -68,9 +68,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::set_of(K::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::set_of_const(const { &K::TYPE_OUTPUT });
 }
 
 impl<'a, 'py, K, H> IntoPyObject<'py> for &'a collections::HashSet<K, H>
@@ -88,9 +86,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::set_of(<&K>::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::set_of_const(const { &<&K>::TYPE_OUTPUT });
 }
 
 impl<'py, K, S> FromPyObject<'py> for collections::HashSet<K, S>
@@ -112,9 +108,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        TypeInfo::set_of(K::type_input())
-    }
+    const TYPE_INPUT: TypeInfo = TypeInfo::set_of_const(const { &K::TYPE_INPUT });
 }
 
 #[allow(deprecated)]
@@ -142,9 +136,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::set_of(K::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::set_of_const(const { &K::TYPE_OUTPUT });
 }
 
 impl<'a, 'py, K> IntoPyObject<'py> for &'a collections::BTreeSet<K>
@@ -161,9 +153,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::set_of(<&K>::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::set_of_const(const { &<&K>::TYPE_OUTPUT });
 }
 
 impl<'py, K> FromPyObject<'py> for collections::BTreeSet<K>
@@ -184,9 +174,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        TypeInfo::set_of(K::type_input())
-    }
+    const TYPE_INPUT: TypeInfo = TypeInfo::set_of_const(const { &K::TYPE_INPUT });
 }
 
 #[cfg(test)]

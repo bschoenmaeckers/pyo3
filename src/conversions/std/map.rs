@@ -77,9 +77,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::dict_of(K::type_output(), V::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::dict_of_const(const { &[K::TYPE_OUTPUT, V::TYPE_OUTPUT] });
 }
 
 impl<'a, 'py, K, V, H> IntoPyObject<'py> for &'a collections::HashMap<K, V, H>
@@ -103,9 +101,8 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::dict_of(<&K>::type_output(), <&V>::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo =
+        TypeInfo::dict_of_const(const { &[<&K>::TYPE_OUTPUT, <&V>::TYPE_OUTPUT] });
 }
 
 #[allow(deprecated)]
@@ -141,9 +138,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::dict_of(K::type_output(), V::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::dict_of_const(const { &[K::TYPE_OUTPUT, V::TYPE_OUTPUT] });
 }
 
 impl<'a, 'py, K, V> IntoPyObject<'py> for &'a collections::BTreeMap<K, V>
@@ -166,9 +161,8 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::dict_of(<&K>::type_output(), <&V>::type_output())
-    }
+    const TYPE_OUTPUT: TypeInfo =
+        TypeInfo::dict_of_const(const { &[<&K>::TYPE_OUTPUT, <&V>::TYPE_OUTPUT] });
 }
 
 impl<'py, K, V, S> FromPyObject<'py> for collections::HashMap<K, V, S>
@@ -187,9 +181,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        TypeInfo::mapping_of(K::type_input(), V::type_input())
-    }
+    const TYPE_INPUT: TypeInfo = TypeInfo::mapping_of_const(const { &[K::TYPE_INPUT, V::TYPE_INPUT] });
 }
 
 impl<'py, K, V> FromPyObject<'py> for collections::BTreeMap<K, V>
@@ -207,9 +199,7 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        TypeInfo::mapping_of(K::type_input(), V::type_input())
-    }
+    const TYPE_INPUT: TypeInfo = TypeInfo::mapping_of_const(const { &[K::TYPE_INPUT, V::TYPE_INPUT] });
 }
 
 #[cfg(test)]

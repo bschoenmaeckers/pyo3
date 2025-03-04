@@ -36,12 +36,14 @@ where
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::union_of(&[
-            TypeInfo::builtin("bytes"),
-            TypeInfo::list_of(<&T>::type_output()),
-        ])
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::union_of_const(
+        const {
+            &[
+                TypeInfo::builtin("bytes"),
+                TypeInfo::list_of_const(const { &<&T>::TYPE_OUTPUT }),
+            ]
+        },
+    );
 }
 
 impl<'a> crate::conversion::FromPyObjectBound<'a, '_> for &'a [u8] {
@@ -50,9 +52,7 @@ impl<'a> crate::conversion::FromPyObjectBound<'a, '_> for &'a [u8] {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        TypeInfo::builtin("bytes")
-    }
+    const TYPE_INPUT: TypeInfo = TypeInfo::builtin("bytes");
 }
 
 /// Special-purpose trait impl to efficiently handle both `bytes` and `bytearray`
@@ -71,9 +71,7 @@ impl<'a> crate::conversion::FromPyObjectBound<'a, '_> for Cow<'a, [u8]> {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        Self::type_output()
-    }
+    const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
 }
 
 #[allow(deprecated)]

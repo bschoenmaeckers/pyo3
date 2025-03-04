@@ -105,9 +105,7 @@ impl<'py> IntoPyObject<'py> for f64 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("float")
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("float");
 }
 
 impl<'py> IntoPyObject<'py> for &f64 {
@@ -121,9 +119,7 @@ impl<'py> IntoPyObject<'py> for &f64 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("float")
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("float");
 }
 
 impl<'py> FromPyObject<'py> for f64 {
@@ -151,9 +147,7 @@ impl<'py> FromPyObject<'py> for f64 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        Self::type_output()
-    }
+    const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
 }
 
 #[allow(deprecated)]
@@ -183,9 +177,7 @@ impl<'py> IntoPyObject<'py> for f32 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("float")
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("float");
 }
 
 impl<'py> IntoPyObject<'py> for &f32 {
@@ -199,9 +191,7 @@ impl<'py> IntoPyObject<'py> for &f32 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("float")
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("float");
 }
 
 impl<'py> FromPyObject<'py> for f32 {
@@ -210,9 +200,7 @@ impl<'py> FromPyObject<'py> for f32 {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        Self::type_output()
-    }
+    const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
 }
 
 macro_rules! impl_partial_eq_for_float {

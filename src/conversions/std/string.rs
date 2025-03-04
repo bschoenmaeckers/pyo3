@@ -48,9 +48,7 @@ impl<'py> IntoPyObject<'py> for &str {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        <String>::type_output()
-    }
+    const TYPE_OUTPUT: TypeInfo = <String>::TYPE_OUTPUT;
 }
 
 impl<'py> IntoPyObject<'py> for &&str {
@@ -64,9 +62,7 @@ impl<'py> IntoPyObject<'py> for &&str {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        <String>::type_output()
-    }
+    const TYPE_OUTPUT: TypeInfo = <String>::TYPE_OUTPUT;
 }
 
 /// Converts a Rust `Cow<'_, str>` to a Python object.
@@ -98,9 +94,7 @@ impl<'py> IntoPyObject<'py> for Cow<'_, str> {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        <String>::type_output()
-    }
+    const TYPE_OUTPUT: TypeInfo = <String>::TYPE_OUTPUT;
 }
 
 impl<'py> IntoPyObject<'py> for &Cow<'_, str> {
@@ -114,9 +108,7 @@ impl<'py> IntoPyObject<'py> for &Cow<'_, str> {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        <String>::type_output()
-    }
+    const TYPE_OUTPUT: TypeInfo = <String>::TYPE_OUTPUT;
 }
 
 /// Converts a Rust `String` to a Python object.
@@ -156,9 +148,7 @@ impl<'py> IntoPyObject<'py> for char {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        <String>::type_output()
-    }
+    const TYPE_OUTPUT: TypeInfo = <String>::TYPE_OUTPUT;
 }
 
 impl<'py> IntoPyObject<'py> for &char {
@@ -172,9 +162,7 @@ impl<'py> IntoPyObject<'py> for &char {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        <String>::type_output()
-    }
+    const TYPE_OUTPUT: TypeInfo = <String>::TYPE_OUTPUT;
 }
 
 #[allow(deprecated)]
@@ -195,9 +183,7 @@ impl<'py> IntoPyObject<'py> for String {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("str")
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("str");
 }
 
 #[allow(deprecated)]
@@ -219,9 +205,7 @@ impl<'py> IntoPyObject<'py> for &String {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        <String>::type_output()
-    }
+    const TYPE_OUTPUT: TypeInfo = String::TYPE_OUTPUT;
 }
 
 #[cfg(any(Py_3_10, not(Py_LIMITED_API)))]
@@ -231,9 +215,7 @@ impl<'a> crate::conversion::FromPyObjectBound<'a, '_> for &'a str {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        <String as crate::FromPyObject>::type_input()
-    }
+    const TYPE_INPUT: TypeInfo = <String as crate::FromPyObject>::TYPE_INPUT;
 }
 
 impl<'a> crate::conversion::FromPyObjectBound<'a, '_> for Cow<'a, str> {
@@ -242,9 +224,7 @@ impl<'a> crate::conversion::FromPyObjectBound<'a, '_> for Cow<'a, str> {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        <String as crate::FromPyObject>::type_input()
-    }
+    const TYPE_INPUT: TypeInfo = <String as crate::FromPyObject>::TYPE_INPUT;
 }
 
 /// Allows extracting strings from Python objects.
@@ -255,9 +235,7 @@ impl FromPyObject<'_> for String {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        Self::type_output()
-    }
+    const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
 }
 
 impl FromPyObject<'_> for char {
@@ -274,9 +252,7 @@ impl FromPyObject<'_> for char {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        <String>::type_input()
-    }
+    const TYPE_INPUT: TypeInfo = String::TYPE_INPUT;
 }
 
 #[cfg(test)]

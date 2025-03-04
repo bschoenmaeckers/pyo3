@@ -173,9 +173,7 @@ impl<'py> IntoPyObject<'py> for bool {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("bool")
-    }
+    const TYPE_OUTPUT: TypeInfo = TypeInfo::builtin("bool");
 }
 
 impl<'py> IntoPyObject<'py> for &bool {
@@ -189,9 +187,7 @@ impl<'py> IntoPyObject<'py> for &bool {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_output() -> TypeInfo {
-        TypeInfo::builtin("bool")
-    }
+    const TYPE_OUTPUT: TypeInfo = bool::TYPE_OUTPUT;
 }
 
 /// Converts a Python `bool` to a Rust `bool`.
@@ -252,9 +248,7 @@ impl FromPyObject<'_> for bool {
     }
 
     #[cfg(feature = "experimental-inspect")]
-    fn type_input() -> TypeInfo {
-        Self::type_output()
-    }
+    const TYPE_INPUT: TypeInfo = Self::TYPE_OUTPUT;
 }
 
 #[cfg(test)]

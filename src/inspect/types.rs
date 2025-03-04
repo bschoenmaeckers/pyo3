@@ -1,5 +1,6 @@
 //! Data types used to describe runtime Python types.
 
+use std::array;
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 
@@ -23,6 +24,14 @@ pub enum TypeInfo {
     ///
     /// The second argument represents the return type.
     Callable(Option<Vec<TypeInfo>>, Box<TypeInfo>),
+    /// The type `typing.Callable`.
+    ///
+    /// The first argument represents the parameters of the callable:
+    /// - `Some` of a vector of types to represent the signature,
+    /// - `None` if the signature is unknown (allows any number of arguments with type `Any`).
+    ///
+    /// The second argument represents the return type.
+    CallableStatic(Option<&'static [TypeInfo]>, &'static TypeInfo),
     /// The type `typing.tuple`.
     ///
     /// The argument represents the contents of the tuple:
@@ -31,7 +40,7 @@ pub enum TypeInfo {
     /// - `None` if the number and type of accepted values is unknown.
     ///
     /// If the number of accepted values is unknown, but their type is, use [`Self::UnsizedTypedTuple`].
-    Tuple(Option<Vec<TypeInfo>>),
+    Tuple(Option<Cow<'static, [TypeInfo]>>),
     /// The type `typing.Tuple`.
     ///
     /// Use this variant to represent a tuple of unknown size but of known types.
@@ -45,7 +54,7 @@ pub enum TypeInfo {
         /// The name of this class, as it appears in a type hint.
         name: Cow<'static, str>,
         /// The generics accepted by this class (empty vector if this class is not generic).
-        type_vars: Vec<TypeInfo>,
+        type_vars: Cow<'static, [TypeInfo]>,
     },
 }
 
@@ -69,6 +78,7 @@ impl TypeInfo {
             TypeInfo::Any
             | TypeInfo::None
             | TypeInfo::NoReturn
+            | TypeInfo::CallableStatic(_, _)
             | TypeInfo::Callable(_, _)
             | TypeInfo::Tuple(_)
             | TypeInfo::UnsizedTypedTuple(_) => Some("typing"),
@@ -88,6 +98,7 @@ impl TypeInfo {
             TypeInfo::Any => "Any",
             TypeInfo::None => "None",
             TypeInfo::NoReturn => "NoReturn",
+            TypeInfo::CallableStatic(_, _) => "Callable",
             TypeInfo::Callable(_, _) => "Callable",
             TypeInfo::Tuple(_) => "Tuple",
             TypeInfo::UnsizedTypedTuple(_) => "Tuple",
@@ -101,100 +112,215 @@ impl TypeInfo {
     /// The Python `Optional` type.
     pub fn optional_of(t: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("Optional"),
-            type_vars: vec![t],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Optional"),
+            type_vars: Cow::Owned(vec![t]),
+        }
+    }
+
+    /// The Python `Optional` type.
+    pub const fn optional_of_const(t: &'static TypeInfo) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Optional"),
+            type_vars: Cow::Borrowed(array::from_ref(t)),
         }
     }
 
     /// The Python `Union` type.
     pub fn union_of(types: &[TypeInfo]) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("Union"),
-            type_vars: types.to_vec(),
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Union"),
+            type_vars: Cow::Owned(types.to_vec()),
+        }
+    }
+
+    /// The Python `Union` type.
+    pub const fn union_of_const(types: &'static [TypeInfo]) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Union"),
+            type_vars: Cow::Borrowed(types),
         }
     }
 
     /// The Python `List` type.
     pub fn list_of(t: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("List"),
-            type_vars: vec![t],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("List"),
+            type_vars: Cow::Owned(vec![t]),
+        }
+    }
+
+    /// The Python `List` type.
+    pub const fn list_of_const(t: &'static TypeInfo) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("List"),
+            type_vars: Cow::Borrowed(array::from_ref(t)),
         }
     }
 
     /// The Python `Sequence` type.
     pub fn sequence_of(t: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("Sequence"),
-            type_vars: vec![t],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Sequence"),
+            type_vars: Cow::Owned(vec![t]),
+        }
+    }
+
+    /// The Python `Sequence` type.
+    pub const fn sequence_of_const(t: &'static TypeInfo) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Sequence"),
+            type_vars: Cow::Borrowed(array::from_ref(t)),
         }
     }
 
     /// The Python `Set` type.
     pub fn set_of(t: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("Set"),
-            type_vars: vec![t],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Set"),
+            type_vars: Cow::Owned(vec![t]),
+        }
+    }
+
+    /// The Python `Set` type.
+    pub const fn set_of_const(t: &'static TypeInfo) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Set"),
+            type_vars: Cow::Borrowed(array::from_ref(t)),
         }
     }
 
     /// The Python `FrozenSet` type.
     pub fn frozen_set_of(t: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("FrozenSet"),
-            type_vars: vec![t],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("FrozenSet"),
+            type_vars: Cow::Owned(vec![t]),
+        }
+    }
+
+    /// The Python `FrozenSet` type.
+    pub const fn frozen_set_of_const(t: &'static TypeInfo) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("FrozenSet"),
+            type_vars: Cow::Borrowed(array::from_ref(t)),
         }
     }
 
     /// The Python `Iterable` type.
     pub fn iterable_of(t: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("Iterable"),
-            type_vars: vec![t],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Iterable"),
+            type_vars: Cow::Owned(vec![t]),
+        }
+    }
+
+    /// The Python `Iterable` type.
+    pub const fn iterable_of_const(t: &'static TypeInfo) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Iterable"),
+            type_vars: Cow::Borrowed(array::from_ref(t)),
         }
     }
 
     /// The Python `Iterator` type.
     pub fn iterator_of(t: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("Iterator"),
-            type_vars: vec![t],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Iterator"),
+            type_vars: Cow::Owned(vec![t]),
+        }
+    }
+
+    /// The Python `Iterator` type.
+    pub const fn iterator_of_const(t: &'static TypeInfo) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Iterator"),
+            type_vars: Cow::Borrowed(array::from_ref(t)),
         }
     }
 
     /// The Python `Dict` type.
-    pub fn dict_of(k: TypeInfo, v: TypeInfo) -> TypeInfo {
+    pub fn dict_of(key: TypeInfo, value: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("Dict"),
-            type_vars: vec![k, v],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Dict"),
+            type_vars: Cow::Owned(vec![key, value]),
+        }
+    }
+
+    /// The Python `Dict` type.
+    pub const fn dict_of_const(types @ [_key, _value]: &'static [TypeInfo; 2]) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Dict"),
+            type_vars: Cow::Borrowed(types),
         }
     }
 
     /// The Python `Mapping` type.
-    pub fn mapping_of(k: TypeInfo, v: TypeInfo) -> TypeInfo {
+    pub fn mapping_of(key: TypeInfo, value: TypeInfo) -> TypeInfo {
         TypeInfo::Class {
-            module: ModuleName::Module(Cow::from("typing")),
-            name: Cow::from("Mapping"),
-            type_vars: vec![k, v],
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Mapping"),
+            type_vars: Cow::Owned(vec![key, value]),
+        }
+    }
+
+    /// The Python `Mapping` type.
+    pub const fn mapping_of_const(types @ [_key, _value]: &'static [TypeInfo; 2]) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed("typing")),
+            name: Cow::Borrowed("Mapping"),
+            type_vars: Cow::Borrowed(types),
         }
     }
 
     /// Convenience factory for non-generic builtins (e.g. `int`).
-    pub fn builtin(name: &'static str) -> TypeInfo {
+    pub const fn builtin(name: &'static str) -> TypeInfo {
         TypeInfo::Class {
             module: ModuleName::Builtin,
-            name: Cow::from(name),
-            type_vars: vec![],
+            name: Cow::Borrowed(name),
+            type_vars: Cow::Borrowed(&[]),
         }
+    }
+
+    /// Convenience factory for non-generic classes.
+    pub const fn class(module: &'static str, name: &'static str) -> TypeInfo {
+        TypeInfo::Class {
+            module: ModuleName::Module(Cow::Borrowed(module)),
+            name: Cow::Borrowed(name),
+            type_vars: Cow::Borrowed(&[]),
+        }
+    }
+
+    /// Convenience factory for callable types.
+    pub fn callable(args: Option<Vec<TypeInfo>>, output: TypeInfo) -> TypeInfo {
+        TypeInfo::Callable(
+            args,
+            Box::new(output)
+        )
+    }
+
+    /// Convenience factory for callable types.
+    pub const fn callable_const(args: Option<&'static [TypeInfo]>, output: &'static TypeInfo) -> TypeInfo {
+        TypeInfo::CallableStatic(
+            args,
+            output
+        )
     }
 }
 
@@ -208,7 +334,7 @@ impl Display for TypeInfo {
                 if let Some(input) = input {
                     write!(f, "[")?;
                     let mut comma = false;
-                    for arg in input {
+                    for arg in input.iter() {
                         if comma {
                             write!(f, ", ")?;
                         }
@@ -222,6 +348,7 @@ impl Display for TypeInfo {
 
                 write!(f, ", {}]", output)
             }
+            TypeInfo::CallableStatic(other, output) => {todo!()}
             TypeInfo::Tuple(types) => {
                 write!(f, "Tuple[")?;
 
@@ -230,7 +357,7 @@ impl Display for TypeInfo {
                         write!(f, "()")?;
                     } else {
                         let mut comma = false;
-                        for t in types {
+                        for t in types.iter() {
                             if comma {
                                 write!(f, ", ")?;
                             }
@@ -254,7 +381,7 @@ impl Display for TypeInfo {
                     write!(f, "[")?;
 
                     let mut comma = false;
-                    for var in type_vars {
+                    for var in type_vars.iter() {
                         if comma {
                             write!(f, ", ")?;
                         }
@@ -312,10 +439,10 @@ mod test {
             TypeInfo::builtin("int"),
             TypeInfo::builtin("str"),
             TypeInfo::builtin("bool"),
-        ]));
+        ].into()));
         assert_display(&triple, "Tuple[int, str, bool]");
 
-        let empty = TypeInfo::Tuple(Some(vec![]));
+        let empty = TypeInfo::Tuple(Some(vec![].into()));
         assert_display(&empty, "Tuple[()]");
 
         let typed = TypeInfo::UnsizedTypedTuple(Box::new(TypeInfo::builtin("bool")));
@@ -327,14 +454,14 @@ mod test {
         let class1 = TypeInfo::Class {
             module: ModuleName::CurrentModule,
             name: Cow::from("MyClass"),
-            type_vars: vec![],
+            type_vars: Cow::Borrowed(&[]),
         };
         assert_display(&class1, "MyClass");
 
         let class2 = TypeInfo::Class {
             module: ModuleName::CurrentModule,
             name: Cow::from("MyClass"),
-            type_vars: vec![TypeInfo::builtin("int"), TypeInfo::builtin("bool")],
+            type_vars: vec![TypeInfo::builtin("int"), TypeInfo::builtin("bool")].into(),
         };
         assert_display(&class2, "MyClass[int, bool]");
     }
@@ -410,79 +537,79 @@ mod conversion {
 
     #[test]
     fn unsigned_int() {
-        assert_display(&usize::type_output(), "int");
-        assert_display(&usize::type_input(), "int");
+        assert_display(&usize::TYPE_OUTPUT, "int");
+        assert_display(&usize::TYPE_INPUT, "int");
 
-        assert_display(&u8::type_output(), "int");
-        assert_display(&u8::type_input(), "int");
+        assert_display(&u8::TYPE_OUTPUT, "int");
+        assert_display(&u8::TYPE_INPUT, "int");
 
-        assert_display(&u16::type_output(), "int");
-        assert_display(&u16::type_input(), "int");
+        assert_display(&u16::TYPE_OUTPUT, "int");
+        assert_display(&u16::TYPE_INPUT, "int");
 
-        assert_display(&u32::type_output(), "int");
-        assert_display(&u32::type_input(), "int");
+        assert_display(&u32::TYPE_OUTPUT, "int");
+        assert_display(&u32::TYPE_INPUT, "int");
 
-        assert_display(&u64::type_output(), "int");
-        assert_display(&u64::type_input(), "int");
+        assert_display(&u64::TYPE_OUTPUT, "int");
+        assert_display(&u64::TYPE_INPUT, "int");
     }
 
     #[test]
     fn signed_int() {
-        assert_display(&isize::type_output(), "int");
-        assert_display(&isize::type_input(), "int");
+        assert_display(&isize::TYPE_OUTPUT, "int");
+        assert_display(&isize::TYPE_INPUT, "int");
 
-        assert_display(&i8::type_output(), "int");
-        assert_display(&i8::type_input(), "int");
+        assert_display(&i8::TYPE_OUTPUT, "int");
+        assert_display(&i8::TYPE_INPUT, "int");
 
-        assert_display(&i16::type_output(), "int");
-        assert_display(&i16::type_input(), "int");
+        assert_display(&i16::TYPE_OUTPUT, "int");
+        assert_display(&i16::TYPE_INPUT, "int");
 
-        assert_display(&i32::type_output(), "int");
-        assert_display(&i32::type_input(), "int");
+        assert_display(&i32::TYPE_OUTPUT, "int");
+        assert_display(&i32::TYPE_INPUT, "int");
 
-        assert_display(&i64::type_output(), "int");
-        assert_display(&i64::type_input(), "int");
+        assert_display(&i64::TYPE_OUTPUT, "int");
+        assert_display(&i64::TYPE_INPUT, "int");
     }
 
     #[test]
     fn float() {
-        assert_display(&f32::type_output(), "float");
-        assert_display(&f32::type_input(), "float");
+        assert_display(&f32::TYPE_OUTPUT, "float");
+        assert_display(&f32::TYPE_INPUT, "float");
 
-        assert_display(&f64::type_output(), "float");
-        assert_display(&f64::type_input(), "float");
+        assert_display(&f64::TYPE_OUTPUT, "float");
+        assert_display(&f64::TYPE_INPUT, "float");
     }
 
     #[test]
     fn bool() {
-        assert_display(&bool::type_output(), "bool");
-        assert_display(&bool::type_input(), "bool");
+        assert_display(&bool::TYPE_OUTPUT, "bool");
+        assert_display(&bool::TYPE_INPUT, "bool");
     }
 
     #[test]
     fn text() {
-        assert_display(&String::type_output(), "str");
-        assert_display(&String::type_input(), "str");
+        assert_display(&String::TYPE_OUTPUT, "str");
+        assert_display(&String::TYPE_INPUT, "str");
 
-        assert_display(&<&[u8]>::type_output(), "Union[bytes, List[int]]");
-        assert_display(&<&[String]>::type_output(), "Union[bytes, List[str]]");
+        assert_display(&<&[u8]>::TYPE_OUTPUT, "Union[bytes, List[int]]");
+        assert_display(&<&[String]>::TYPE_OUTPUT, "Union[bytes, List[str]]");
         assert_display(
-            &<&[u8] as crate::conversion::FromPyObjectBound>::type_input(),
+            &<&[u8] as crate::conversion::FromPyObjectBound>::TYPE_INPUT,
             "bytes",
         );
     }
 
     #[test]
     fn collections() {
-        assert_display(&<Vec<usize>>::type_output(), "List[int]");
-        assert_display(&<Vec<usize>>::type_input(), "Sequence[int]");
+        assert_display(&<Vec<usize>>::TYPE_OUTPUT, "List[int]");
+        assert_display(&<Vec<usize>>::TYPE_INPUT, "Sequence[int]");
 
-        assert_display(&<HashSet<usize>>::type_output(), "Set[int]");
-        assert_display(&<HashSet<usize>>::type_input(), "Set[int]");
+        assert_display(&<HashSet<usize>>::TYPE_OUTPUT, "Set[int]");
+        assert_display(&<HashSet<usize>>::TYPE_INPUT, "Set[int]");
 
-        assert_display(&<HashMap<usize, f32>>::type_output(), "Dict[int, float]");
-        assert_display(&<HashMap<usize, f32>>::type_input(), "Mapping[int, float]");
+        assert_display(&<HashMap<usize, f32>>::TYPE_OUTPUT, "Dict[int, float]");
+        assert_display(&<HashMap<usize, f32>>::TYPE_INPUT, "Mapping[int, float]");
 
-        assert_display(&<(usize, f32)>::type_input(), "Tuple[int, float]");
+        assert_display(&<(usize, f32)>::TYPE_INPUT, "Tuple[int, float]");
     }
 }

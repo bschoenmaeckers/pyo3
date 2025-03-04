@@ -148,7 +148,7 @@ where
 
     #[cfg(feature = "experimental-inspect")]
     fn type_input() -> TypeInfo {
-        TypeInfo::union_of(&[L::type_input(), R::type_input()])
+        TypeInfo::union_of_const(&[L::type_input(), R::type_input()])
     }
 }
 
