@@ -212,20 +212,6 @@ pub unsafe fn Py_SIZE(ob: *mut PyObject) -> Py_ssize_t {
     _Py_SIZE(ob)
 }
 
-#[inline(always)]
-#[cfg(all(Py_3_12, not(Py_GIL_DISABLED)))]
-unsafe fn _Py_IsImmortal(op: *mut PyObject) -> c_int {
-    #[cfg(target_pointer_width = "64")]
-    {
-        (((*op).ob_refcnt.ob_refcnt as crate::PY_INT32_T) < 0) as c_int
-    }
-
-    #[cfg(target_pointer_width = "32")]
-    {
-        ((*op).ob_refcnt.ob_refcnt == _Py_IMMORTAL_REFCNT) as c_int
-    }
-}
-
 #[inline]
 pub unsafe fn Py_IS_TYPE(ob: *mut PyObject, tp: *mut PyTypeObject) -> c_int {
     (Py_TYPE(ob) == tp) as c_int
@@ -662,7 +648,7 @@ pub unsafe fn Py_INCREF(op: *mut PyObject) {
 
         #[cfg(all(Py_3_12, target_pointer_width = "32"))]
         {
-            if _Py_IsImmortal(op) != 0 {
+            if crate::compat::PyUnstable_IsImmortal(op) != 0 {
                 return;
             }
             (*op).ob_refcnt.ob_refcnt += 1
@@ -714,7 +700,7 @@ pub unsafe fn Py_DECREF(op: *mut PyObject) {
     )))]
     {
         #[cfg(Py_3_12)]
-        if _Py_IsImmortal(op) != 0 {
+        if crate::compat::PyUnstable_IsImmortal(op) != 0 {
             return;
         }
 
