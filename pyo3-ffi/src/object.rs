@@ -39,10 +39,7 @@ pub const PyObject_HEAD_INIT: PyObject = PyObject {
     #[cfg(Py_GIL_DISABLED)]
     _padding: 0,
     #[cfg(Py_GIL_DISABLED)]
-    ob_mutex: PyMutex {
-        _bits: AtomicU8::new(0),
-        _pin: PhantomPinned,
-    },
+    ob_mutex: PyMutex::new(),
     #[cfg(Py_GIL_DISABLED)]
     ob_gc_bits: 0,
     #[cfg(Py_GIL_DISABLED)]
