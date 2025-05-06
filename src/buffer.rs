@@ -18,8 +18,10 @@
 // DEALINGS IN THE SOFTWARE.
 
 //! `PyBuffer` implementation
-use crate::Bound;
+use crate::ffi_ptr_ext::FfiPtrExt;
+use crate::types::{PyAnyMethods, PyMemoryView};
 use crate::{err, exceptions::PyBufferError, ffi, FromPyObject, PyAny, PyResult, Python};
+use crate::{Bound, IntoPyObject, PyErr};
 use std::marker::PhantomData;
 use std::os::raw;
 use std::pin::Pin;
@@ -188,6 +190,30 @@ impl<T: Element> FromPyObject<'_> for PyBuffer<T> {
     }
 }
 
+impl<'py, T: Element> IntoPyObject<'py> for PyBuffer<T> {
+    type Target = PyMemoryView;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        (&self).into_pyobject(py)
+    }
+}
+
+impl<'py, T: Element> IntoPyObject<'py> for &PyBuffer<T> {
+    type Target = PyMemoryView;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Ok(unsafe {
+            ffi::PyMemoryView_FromBuffer(self.as_ptr())
+                .assume_owned_or_err(py)?
+                .downcast_into_unchecked()
+        })
+    }
+}
+
 impl<T: Element> PyBuffer<T> {
     /// Gets the underlying buffer from the specified python object.
     pub fn get(obj: &Bound<'_, PyAny>) -> PyResult<PyBuffer<T>> {
@@ -259,6 +285,10 @@ impl<T: Element> PyBuffer<T> {
                 },
             )
         }
+    }
+
+    pub(crate) fn as_ptr(&self) -> *const ffi::Py_buffer {
+        ptr::from_ref(&*self.0)
     }
 
     /// Gets whether the underlying buffer is read-only.
