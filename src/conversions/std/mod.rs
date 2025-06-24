@@ -1,5 +1,6 @@
 mod array;
 mod cell;
+mod file;
 mod ipaddr;
 mod map;
 mod num;

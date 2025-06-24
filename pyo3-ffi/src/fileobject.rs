@@ -5,14 +5,14 @@ pub const PY_STDIOTEXTMODE: &str = "b";
 
 extern "C" {
     pub fn PyFile_FromFd(
-        arg1: c_int,
-        arg2: *const c_char,
-        arg3: *const c_char,
-        arg4: c_int,
-        arg5: *const c_char,
-        arg6: *const c_char,
-        arg7: *const c_char,
-        arg8: c_int,
+        fd: c_int,
+        name: *const c_char,
+        mode: *const c_char,
+        buffering: c_int,
+        encoding: *const c_char,
+        errors: *const c_char,
+        newline: *const c_char,
+        closefd: c_int,
     ) -> *mut PyObject;
     #[cfg_attr(PyPy, link_name = "PyPyFile_GetLine")]
     pub fn PyFile_GetLine(arg1: *mut PyObject, arg2: c_int) -> *mut PyObject;
