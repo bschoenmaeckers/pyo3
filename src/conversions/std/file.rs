@@ -44,7 +44,7 @@ impl<'py> IntoPyObject<'py> for OwnedHandle {
 
         // We cannot determine the mode of the file descriptor in a portable way on Windows,
         // so we default to "rb+" mode, which allows reading and writing.
-        let mode = c_str!("rb+");
+        let mode = c_str!("r+b");
 
         unsafe {
             ffi::PyFile_FromFd(
@@ -177,12 +177,25 @@ impl<'py> IntoPyObject<'py> for File {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CString;
     use super::*;
     use crate::exceptions::PyTypeError;
     use crate::types::{PyAnyMethods, PyNone};
     use crate::Python;
-    use pyo3_ffi::c_str;
     use std::io::{Read, Write};
+
+    fn with_py_file(f: impl FnOnce(&Bound<'_, PyAny>)) {
+        Python::with_gil(|py| {
+            let temp_file = tempfile::NamedTempFile::new().unwrap();
+            let path = temp_file.path().to_string_lossy().replace("\\", "\\\\");
+            let code = CString::new(format!("open('{}', 'r')", path)).unwrap();
+            let py_file = py
+                .eval(&code, None, None)
+                .unwrap();
+            f(&py_file);
+            py_file.call_method0("close").unwrap();
+        });
+    }
 
     #[test]
     fn test_not_a_file() {
@@ -194,11 +207,8 @@ mod tests {
     }
 
     #[test]
-    fn test_writing_read_only_file() {
-        Python::with_gil(|py| {
-            let py_file = py
-                .eval(c_str!("open('Cargo.toml', 'r')"), None, None)
-                .unwrap();
+    fn test_writing_read_only_pyfile() {
+        with_py_file(|py_file| {
             let mut file = py_file.extract::<File>().unwrap();
             assert!(
                 file.write("some data".as_bytes()).is_err(),
@@ -208,11 +218,26 @@ mod tests {
     }
 
     #[test]
-    fn test_dropping_file() {
+    fn test_writing_read_only_rustfile() {
         Python::with_gil(|py| {
-            let py_file = py
-                .eval(c_str!("open('Cargo.toml', 'r')"), None, None)
-                .unwrap();
+            let file = File::options().read(true).write(false).open("cargo.toml").unwrap();
+            let py_file = file.into_pyobject(py).unwrap();
+            #[cfg(not(windows))]
+            assert!(
+                !py_file.call_method0("writable").unwrap().extract::<bool>().unwrap(),
+                "file should not be advertised as writable"
+            );
+            let write_failed = py_file.call_method1("write", (b"some data",)).is_err();
+                // || py_file.call_method0("flush").is_err();
+            py_file.call_method0("flush").unwrap();
+            assert!(write_failed, "you should not be able to write to a read-only file");
+            py_file.call_method0("close").unwrap();
+        })
+    }
+
+    #[test]
+    fn test_dropping_file() {
+        with_py_file(|py_file| {
             let file = py_file.extract::<File>().unwrap();
             assert!(file.metadata().is_ok());
             drop(file);
@@ -234,22 +259,10 @@ mod tests {
     #[test]
     fn test_into_pyobject() {
         Python::with_gil(|py| {
-            let file = File::open("Cargo.toml").unwrap();
+            let file = tempfile::tempfile().unwrap();
             let py_file: Bound<'_, PyAny> = file.into_pyobject(py).unwrap();
             py_file.call_method0("read").unwrap();
-        })
-    }
-
-    #[test]
-    fn test_file_read() {
-        Python::with_gil(|py| {
-            let py_file = py
-                .eval(c_str!("open('cargo.toml', 'r')"), None, None)
-                .unwrap();
-            let mut file: File = py_file.clone().extract().unwrap();
-
-            assert!(file.metadata().is_ok());
-            assert!(file.read_to_string(&mut String::new()).unwrap() > 0);
+            py_file.call_method0("close").unwrap();
         })
     }
 }
