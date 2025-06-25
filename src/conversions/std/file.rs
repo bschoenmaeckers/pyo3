@@ -78,55 +78,11 @@ impl<'py> IntoPyObject<'py> for OwnedFd {
             return Err(PyOSError::new_err("Cannot convert File to file descriptor"));
         }
 
-        let mode = {
-            let flags: i32 = unsafe { libc::fcntl(fd, libc::F_GETFL) };
-            if flags < 0 {
-                return Err(std::io::Error::last_os_error().into());
-            }
-
-            let appended = flags & libc::O_APPEND > 0;
-            let created_exclusive = flags & libc::O_CREAT > 0 && flags & libc::O_EXCL > 0;
-            let (readable, writable) = match flags & libc::O_ACCMODE {
-                libc::O_RDONLY => (true, false),
-                libc::O_WRONLY => (false, true),
-                libc::O_RDWR => (true, true),
-                libc::O_ACCMODE.. => unreachable!(),
-            };
-
-            debug_assert!(!appended || writable, "appended files must be writable");
-            debug_assert!(
-                !created_exclusive || writable,
-                "created files must be writable"
-            );
-
-            if created_exclusive {
-                if readable {
-                    c_str!("xb+")
-                } else {
-                    c_str!("xb")
-                }
-            } else if appended {
-                if readable {
-                    c_str!("ab+")
-                } else {
-                    c_str!("ab")
-                }
-            } else if readable {
-                if writable {
-                    c_str!("rb+")
-                } else {
-                    c_str!("rb")
-                }
-            } else {
-                c_str!("wb")
-            }
-        };
-
         unsafe {
             ffi::PyFile_FromFd(
                 fd,
                 std::ptr::null(),
-                mode.as_ptr(),
+                file_mode(fd)?.as_ptr(),
                 -1,
                 std::ptr::null(),
                 std::ptr::null(),
@@ -208,6 +164,51 @@ fn file_mode(handle: RawHandle) -> std::io::Result<&'static CStr> {
         Ok(c_str!("wb"))
     } else {
         Ok(c_str!("rb"))
+    }
+}
+
+#[cfg(unix)]
+fn file_mode(fd: RawFd) -> std::io::Result<&'static CStr> {
+    let flags: i32 = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+
+    let appended = flags & libc::O_APPEND > 0;
+    let created_exclusive = flags & libc::O_CREAT > 0 && flags & libc::O_EXCL > 0;
+    let (readable, writable) = match flags & libc::O_ACCMODE {
+        libc::O_RDONLY => (true, false),
+        libc::O_WRONLY => (false, true),
+        libc::O_RDWR => (true, true),
+        libc::O_ACCMODE.. => unreachable!(),
+    };
+
+    debug_assert!(!appended || writable, "appended files must be writable");
+    debug_assert!(
+        !created_exclusive || writable,
+        "created files must be writable"
+    );
+
+    if created_exclusive {
+        if readable {
+            Ok(c_str!("xb+"))
+        } else {
+            Ok(c_str!("xb"))
+        }
+    } else if appended {
+        if readable {
+            Ok(c_str!("ab+"))
+        } else {
+            Ok(c_str!("ab"))
+        }
+    } else if readable {
+        if writable {
+            Ok(c_str!("rb+"))
+        } else {
+            Ok(c_str!("rb"))
+        }
+    } else {
+        Ok(c_str!("wb"))
     }
 }
 
