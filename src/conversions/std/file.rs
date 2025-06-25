@@ -4,6 +4,7 @@ use crate::ffi_ptr_ext::FfiPtrExt;
 use crate::types::PyAnyMethods;
 use crate::{ffi, Bound, FromPyObject, IntoPyObject, PyAny, PyErr, PyResult, Python};
 use pyo3_ffi::c_str;
+use std::ffi::CStr;
 use std::fs::File;
 #[cfg(unix)]
 use std::os::unix::prelude::*;
@@ -33,24 +34,18 @@ impl<'py> IntoPyObject<'py> for OwnedHandle {
     type Error = PyErr;
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
-        let fd = unsafe {
-            let raw_handle = self.into_raw_handle();
-            libc::open_osfhandle(raw_handle as _, 0)
-        };
+        let handle = self.into_raw_handle();
+        let fd = unsafe { libc::open_osfhandle(handle as _, 0) };
 
         if fd < 0 {
             return Err(PyOSError::new_err("Cannot convert File to file descriptor"));
         }
 
-        // We cannot determine the mode of the file descriptor in a portable way on Windows,
-        // so we default to "rb+" mode, which allows reading and writing.
-        let mode = c_str!("r+b");
-
         unsafe {
             ffi::PyFile_FromFd(
                 fd,
                 std::ptr::null(),
-                mode.as_ptr(),
+                file_mode(handle)?.as_ptr(),
                 -1,
                 std::ptr::null(),
                 std::ptr::null(),
@@ -175,23 +170,62 @@ impl<'py> IntoPyObject<'py> for File {
     }
 }
 
+#[cfg(windows)]
+fn file_mode(handle: RawHandle) -> std::io::Result<&'static CStr> {
+    use windows::{
+        Wdk::Storage::FileSystem::{
+            FileAccessInformation, NtQueryInformationFile, FILE_ACCESS_INFORMATION,
+        },
+        Win32::{
+            Foundation::HANDLE,
+            Storage::FileSystem::FILE_ACCESS_RIGHTS,
+            Storage::FileSystem::{FILE_GENERIC_READ, FILE_GENERIC_WRITE},
+            System::IO::IO_STATUS_BLOCK,
+        },
+    };
+
+    let mut iosb = IO_STATUS_BLOCK::default();
+    let mut access_info = FILE_ACCESS_INFORMATION::default();
+
+    unsafe {
+        NtQueryInformationFile(
+            HANDLE(handle),
+            &mut iosb,
+            &mut access_info as *mut _ as *mut _,
+            size_of::<FILE_ACCESS_INFORMATION>() as u32,
+            FileAccessInformation,
+        )
+    }
+    .ok()?;
+
+    let access_flags = FILE_ACCESS_RIGHTS(access_info.AccessFlags);
+    let readable = access_flags.contains(FILE_GENERIC_READ);
+    let writable = access_flags.contains(FILE_GENERIC_WRITE);
+
+    if readable & writable {
+        Ok(c_str!("rb+"))
+    } else if writable {
+        Ok(c_str!("wb"))
+    } else {
+        Ok(c_str!("rb"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::ffi::CString;
     use super::*;
     use crate::exceptions::PyTypeError;
     use crate::types::{PyAnyMethods, PyNone};
     use crate::Python;
-    use std::io::{Read, Write};
+    use std::ffi::CString;
+    use std::io::Write;
 
     fn with_py_file(f: impl FnOnce(&Bound<'_, PyAny>)) {
         Python::with_gil(|py| {
             let temp_file = tempfile::NamedTempFile::new().unwrap();
             let path = temp_file.path().to_string_lossy().replace("\\", "\\\\");
             let code = CString::new(format!("open('{}', 'r')", path)).unwrap();
-            let py_file = py
-                .eval(&code, None, None)
-                .unwrap();
+            let py_file = py.eval(&code, None, None).unwrap();
             f(&py_file);
             py_file.call_method0("close").unwrap();
         });
@@ -220,17 +254,25 @@ mod tests {
     #[test]
     fn test_writing_read_only_rustfile() {
         Python::with_gil(|py| {
-            let file = File::options().read(true).write(false).open("cargo.toml").unwrap();
+            let file = File::options()
+                .read(true)
+                .write(false)
+                .open("cargo.toml")
+                .unwrap();
             let py_file = file.into_pyobject(py).unwrap();
-            #[cfg(not(windows))]
             assert!(
-                !py_file.call_method0("writable").unwrap().extract::<bool>().unwrap(),
+                !py_file
+                    .call_method0("writable")
+                    .unwrap()
+                    .extract::<bool>()
+                    .unwrap(),
                 "file should not be advertised as writable"
             );
             let write_failed = py_file.call_method1("write", (b"some data",)).is_err();
-                // || py_file.call_method0("flush").is_err();
-            py_file.call_method0("flush").unwrap();
-            assert!(write_failed, "you should not be able to write to a read-only file");
+            assert!(
+                write_failed,
+                "you should not be able to write to a read-only file"
+            );
             py_file.call_method0("close").unwrap();
         })
     }

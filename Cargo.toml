@@ -65,6 +65,9 @@ iana-time-zone = { version = "0.1", optional = true, features = ["fallback"]}
 [target.'cfg(not(target_has_atomic = "64"))'.dependencies]
 portable-atomic = "1.0"
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61.3", features = ["Wdk_Storage_FileSystem", "Win32_System_IO", "Win32_Storage_FileSystem"] }
+
 [dev-dependencies]
 assert_approx_eq = "1.1.0"
 chrono = "0.4.25"
