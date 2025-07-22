@@ -32,3 +32,10 @@ pub unsafe fn PyBytes_AS_STRING(op: *mut PyObject) -> *const c_char {
     #[cfg(any(PyPy, GraalPy))]
     return crate::PyBytes_AsString(op);
 }
+
+#[repr(C)]
+pub struct PyBytesWriter {
+    pub(crate) small_buffer: [std::ffi::c_char; 256],
+    pub(crate) obj: *mut PyObject,
+    pub(crate) size: Py_ssize_t,
+}
