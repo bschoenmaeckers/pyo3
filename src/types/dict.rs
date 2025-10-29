@@ -4,7 +4,8 @@ use crate::ffi_ptr_ext::FfiPtrExt;
 use crate::instance::{Borrowed, Bound};
 use crate::py_result_ext::PyResultExt;
 use crate::types::{PyAny, PyList, PyMapping};
-use crate::{ffi, BoundObject, IntoPyObject, IntoPyObjectExt, Python};
+use crate::{ffi, BoundObject, IntoPyObject, IntoPyObjectExt, Py, Python};
+use std::convert::Infallible;
 
 /// Represents a Python `dict`.
 ///
@@ -816,11 +817,48 @@ where
     }
 }
 
+// Keys and values must be Infallible to convert to PyObject, to ensure that
+// FromIterator cannot fail unexpectedly. But this will panic if any key is not hashable.
+impl<K, V> FromIterator<(K, V)> for Py<PyDict>
+where
+    for<'py> K: IntoPyObject<'py, Error = Infallible>,
+    for<'py> V: IntoPyObject<'py, Error = Infallible>,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        Python::attach(|py| {
+            let dict = PyDict::new(py);
+            iter.into_iter().try_for_each(|(key, value)| dict.set_item(key, value))
+                .expect("all keys of a dict must be hashable");
+            dict.unbind()
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::{PyAnyMethods as _, PyTuple};
     use std::collections::{BTreeMap, HashMap};
+
+    #[test]
+    fn test_from_iter() {
+        Python::attach(|py| {
+            let items = (0..3)
+                .into_iter()
+                .map(|i| {
+                    let key = i;
+                    let value = format!("This is value {i}");
+                    Ok((key, value))
+                });
+
+            let dict = items
+                .collect::<PyResult<Py<PyDict>>>()
+                .unwrap()
+                .into_bound(py);
+
+            assert_eq!(dict.len(), 3);
+        });
+    }
 
     #[test]
     fn test_new() {

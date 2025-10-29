@@ -121,13 +121,13 @@ pub(crate) mod private {
     }
 }
 
-impl<'py, T> IntoPyObject<'py> for Bound<'py, T> {
+impl<'py, T> IntoPyObject<'py> for Bound<'_, T> {
     type Target = T;
     type Output = Bound<'py, Self::Target>;
     type Error = Infallible;
 
-    fn into_pyobject(self, _py: Python<'py>) -> Result<Self::Output, Self::Error> {
-        Ok(self)
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Ok(self.unbind().into_bound(py))
     }
 }
 
