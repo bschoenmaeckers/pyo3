@@ -1,3 +1,24 @@
+//! A writer for efficiently building Python `bytes` objects.
+//!
+//! This type implements `std::io::Write` and `std::io::Seek`, allowing you to
+//! write data to a buffer that can later be converted into a `PyBytes` object without
+//! unnecessary copies.
+//!
+//! # Example
+//! ```rust
+//! use pyo3::prelude::*;
+//! use pyo3::types::PyBytes;
+//! use pyo3::bytes::PyBytesWriter;
+//! use std::io::Write;
+//!
+//! Python::with_gil(|py| {
+//!    let mut writer = PyBytesWriter::new(py).unwrap();
+//!   writer.write_all(b"Hello, ").unwrap();
+//!  writer.write_all(b"world!").unwrap();
+//!  let py_bytes: &PyBytes = writer.into_pyobject(py).unwrap().as_ref(py);
+//! assert_eq!(py_bytes.as_bytes(), b"Hello, world!");
+//! });
+//! ```
 #[cfg(not(Py_LIMITED_API))]
 use crate::{
     err::error_on_minusone,
@@ -12,19 +33,26 @@ use crate::{
     py_result_ext::PyResultExt,
 };
 use crate::{types::PyBytes, Bound, IntoPyObject, PyErr, PyResult, Python};
-use std::io::IoSlice;
+use std::io::{IoSlice, SeekFrom};
 #[cfg(not(Py_LIMITED_API))]
 use std::{
     mem::ManuallyDrop,
     ptr::{self, NonNull},
 };
 
+/// A writer for efficiently building Python `bytes` objects.
+///
+/// This type implements `std::io::Write` and `std::io::Seek`, allowing you to
+/// write data to a buffer that can later be converted into a `PyBytes` object without
+/// unnecessary copies.
 pub struct PyBytesWriter<'py> {
     python: Python<'py>,
     #[cfg(not(Py_LIMITED_API))]
     writer: NonNull<ffi::PyBytesWriter>,
+    #[cfg(not(Py_LIMITED_API))]
+    pos: usize,
     #[cfg(Py_LIMITED_API)]
-    buffer: Vec<u8>,
+    buffer: std::io::Cursor<Vec<u8>>,
 }
 
 impl<'py> PyBytesWriter<'py> {
@@ -43,7 +71,7 @@ impl<'py> PyBytesWriter<'py> {
             NonNull::new(unsafe { PyBytesWriter_Create(capacity as _) }).map_or_else(
                 || Err(PyErr::fetch(py)),
                 |writer| {
-                    let mut writer = PyBytesWriter { python: py, writer };
+                    let mut writer = PyBytesWriter { python: py, writer, pos: 0};
                     // SAFETY: By setting the length to 0, we ensure no bytes are considered uninitialized.
                     unsafe { writer.set_len(0)? };
                     Ok(writer)
@@ -55,14 +83,14 @@ impl<'py> PyBytesWriter<'py> {
         {
             Ok(PyBytesWriter {
                 python: py,
-                buffer: Vec::with_capacity(capacity),
+                buffer: std::io::Cursor::new(Vec::with_capacity(capacity)),
             })
         }
     }
 
     /// Get the current length of the internal buffer.
     #[inline]
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         #[cfg(not(Py_LIMITED_API))]
         unsafe {
             PyBytesWriter_GetSize(self.writer.as_ptr()) as _
@@ -70,7 +98,7 @@ impl<'py> PyBytesWriter<'py> {
 
         #[cfg(Py_LIMITED_API)]
         {
-            self.buffer.len()
+            self.as_bytes().len()
         }
     }
 
@@ -78,6 +106,35 @@ impl<'py> PyBytesWriter<'py> {
     #[cfg(not(Py_LIMITED_API))]
     fn as_mut_ptr(&mut self) -> *mut u8 {
         unsafe { PyBytesWriter_GetData(self.writer.as_ptr()) as _ }
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        #[cfg(not(Py_LIMITED_API))]
+        // SAFETY: The buffer has valid data up to len().
+        unsafe {
+            std::slice::from_raw_parts(
+                PyBytesWriter_GetData(self.writer.as_ptr()) as *const u8,
+                self.len(),
+            )
+        }
+
+        #[cfg(Py_LIMITED_API)]
+        {
+            &self.buffer.get_ref()
+        }
+    }
+
+    fn as_mut_bytes(&mut self) -> &mut [u8] {
+        #[cfg(not(Py_LIMITED_API))]
+        // SAFETY: The buffer has valid data up to len().
+        unsafe {
+            std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.len())
+        }
+
+        #[cfg(Py_LIMITED_API)]
+        {
+            self.buffer.get_mut()
+        }
     }
 
     /// Set the length of the internal buffer to `new_len`. The new bytes are uninitialized.
@@ -93,6 +150,30 @@ impl<'py> PyBytesWriter<'py> {
                 PyBytesWriter_Resize(self.writer.as_ptr(), new_len as _),
             )
         }
+    }
+
+    /// Reserve additional capacity and pad with zeros.
+    ///
+    /// # Safety
+    /// The caller must ensure that the next `amount` bytes after pos will be written to.
+    #[inline]
+    #[cfg(not(Py_LIMITED_API))]
+    unsafe fn reserve_and_pad(&mut self, amount: usize) -> PyResult<()> {
+        let old_len = self.len();
+
+        // Ensure enough capacity, so that pos + amount is valid.
+        if self.pos + amount > old_len {
+            // SAFETY: Caller upholds the safety contract.
+            unsafe { self.set_len(self.pos + amount)? }
+        }
+
+        // pos is in unwritten area, so we need to pad with zeros until pos.
+        if self.pos > old_len {
+            // SAFETY: We have ensured enough capacity above.
+            unsafe { ptr::write_bytes(self.as_mut_ptr().add(old_len), 0, self.pos - old_len) }
+        }
+
+        Ok(())
     }
 }
 
@@ -112,7 +193,7 @@ impl<'py> TryFrom<PyBytesWriter<'py>> for Bound<'py, PyBytes> {
 
         #[cfg(Py_LIMITED_API)]
         {
-            Ok(PyBytes::new(py, &value.buffer))
+            Ok(PyBytes::new(py, value.as_bytes()))
         }
     }
 }
@@ -145,12 +226,12 @@ impl std::io::Write for PyBytesWriter<'_> {
 
     fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> std::io::Result<usize> {
         let len = bufs.iter().map(|b| b.len()).sum();
-        // SAFETY: We ensure enough capacity below.
-        let mut pos = unsafe { self.as_mut_ptr().add(self.len()) };
 
         // SAFETY: We write the new uninitialized bytes below.
-        unsafe { self.set_len(self.len() + len)? }
+        unsafe { self.reserve_and_pad(len)?; }
 
+        // SAFETY: We ensure enough capacity above.
+        let mut pos = unsafe { self.as_mut_ptr().add(self.pos) };
         for buf in bufs {
             // SAFETY: We have ensured enough capacity above.
             unsafe { ptr::copy_nonoverlapping(buf.as_ptr(), pos, buf.len()) };
@@ -167,14 +248,14 @@ impl std::io::Write for PyBytesWriter<'_> {
 
     fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
         let len = buf.len();
-        let pos = self.len();
 
         // SAFETY: We write the new uninitialized bytes below.
-        unsafe { self.set_len(pos + len)? }
+        unsafe { self.reserve_and_pad(len)?; }
 
         // SAFETY: We have ensured enough capacity above.
-        unsafe { ptr::copy_nonoverlapping(buf.as_ptr(), self.as_mut_ptr().add(pos), len) };
+        unsafe { ptr::copy_nonoverlapping(buf.as_ptr(), self.as_mut_ptr().add(self.pos), len) };
 
+        self.pos += len;
         Ok(())
     }
 }
@@ -202,11 +283,82 @@ impl std::io::Write for PyBytesWriter<'_> {
     }
 }
 
+impl std::io::Seek for PyBytesWriter<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        #[cfg(Py_LIMITED_API)]
+        {
+            self.buffer.seek(pos)
+        }
+
+        #[cfg(not(Py_LIMITED_API))]
+        {
+            let new_pos: usize = match pos {
+                SeekFrom::Start(offset) => offset as i64,
+                SeekFrom::End(offset) => self.len() as i64 - offset,
+                SeekFrom::Current(offset) => self.pos as i64 + offset,
+            }
+            .try_into()
+            .map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid seek position")
+            })?;
+
+            // if new_pos > self.len() {
+            //     self.resize(new_pos, 0)?;
+            // }
+
+            self.pos = new_pos;
+            Ok(self.pos as u64)
+        }
+    }
+
+    fn rewind(&mut self) -> std::io::Result<()> {
+        #[cfg(Py_LIMITED_API)]
+        {
+            self.buffer.rewind()
+        }
+
+        #[cfg(not(Py_LIMITED_API))]
+        {
+            self.pos = 0;
+            Ok(())
+        }
+    }
+
+    fn stream_position(&mut self) -> std::io::Result<u64> {
+        #[cfg(Py_LIMITED_API)]
+        {
+            self.buffer.stream_position()
+        }
+
+        #[cfg(not(Py_LIMITED_API))]
+        {
+            Ok(self.pos as u64)
+        }
+    }
+
+    #[cfg(Py_LIMITED_API)]
+    fn seek_relative(&mut self, offset: i64) -> std::io::Result<()> {
+        self.buffer.seek_relative(offset)
+    }
+}
+
+impl AsRef<[u8]> for PyBytesWriter<'_> {
+    fn as_ref(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+impl AsMut<[u8]> for PyBytesWriter<'_> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.as_mut_bytes()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::PyBytesMethods;
-    use std::io::Write;
+    use std::io::{Seek, Write};
 
     #[test]
     fn test_io_write() {
@@ -250,6 +402,24 @@ mod tests {
             writer.write_all(&large_data).unwrap();
             let bytes: Bound<'_, PyBytes> = writer.try_into().unwrap();
             assert_eq!(bytes.as_bytes(), large_data.as_slice());
+        })
+    }
+
+    #[test]
+    fn test_seek() {
+        Python::attach(|py| {
+            let mut writer = PyBytesWriter::new(py).unwrap();
+            writer.write_all(b"hello").unwrap();
+            writer.seek_relative(1).unwrap();
+            assert_eq!(writer.stream_position().unwrap(), 6);
+            assert_eq!(writer.as_bytes(), b"hello", "Seeking past end should not change data");
+            assert_eq!(writer.len(), 5, "Length should remain unchanged after seeking past end");
+            writer.write_all(b"world").unwrap();
+            assert_eq!(writer.as_bytes(), b"hello\0world", "unwritten bytes should be zeroed initialized");
+            writer.rewind().unwrap();
+            writer.write_all(b"hallo ").unwrap();
+            let bytes: Bound<'_, PyBytes> = writer.try_into().unwrap();
+            assert_eq!(bytes.as_bytes(), b"hallo world");
         })
     }
 }

@@ -2,7 +2,6 @@ use crate::byteswriter::PyBytesWriter;
 use crate::ffi_ptr_ext::FfiPtrExt;
 use crate::instance::{Borrowed, Bound};
 use crate::{ffi, Py, PyAny, PyResult, Python};
-use std::io::Write;
 use std::ops::Index;
 use std::slice::SliceIndex;
 use std::str;
@@ -143,7 +142,7 @@ impl PyBytes {
         write: F,
     ) -> PyResult<Bound<'_, PyBytes>>
     where
-        F: FnOnce(&mut dyn Write) -> PyResult<()>,
+        F: FnOnce(&mut PyBytesWriter<'_>) -> PyResult<()>,
     {
         let mut writer = PyBytesWriter::with_capacity(py, reserved_capacity)?;
         write(&mut writer)?;
@@ -336,6 +335,7 @@ impl AsRef<[u8]> for Bound<'_, PyBytes> {
 mod tests {
     use super::*;
     use crate::types::PyAnyMethods as _;
+    use std::io::Write;
 
     #[test]
     fn test_bytes_index() {
