@@ -507,7 +507,6 @@ jobs:
             python-version: 3.14
             wasi-sdk-version: 29
     env:
-      WASI_SDK_PATH: "/opt/wasi-sdk"
       CPYTHON_PATH: "${{ github.workspace }}/wasi/cpython"
     steps:
       - uses: actions/checkout@v6.0.1
@@ -523,11 +522,10 @@ jobs:
       - name: "Install wasmtime"
         uses: bytecodealliance/actions/wasmtime/setup@v1
       - name: "Install WASI SDK"
-        run: |
-          mkdir ${{ env.WASI_SDK_PATH }} && \
-          curl -s -S --location https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${{matrix.wasi-sdk-version}}/wasi-sdk-${{matrix.wasi-sdk-version}}.0-x86_64-linux.tar.gz | \
-          tar --strip-components 1 --directory ${{ env.WASI_SDK_PATH }} --extract --gunzip
-          $WASI_SDK_PATH/bin/clang --version
+        id: setup-wasi-sdk
+        uses: bytecodealliance/setup-wasi-sdk-action@v1
+        with:
+          version: ${{ matrix.wasi-sdk-version }}
       - uses: actions/cache/restore@v5
         id: cache-wasi-python
         with:
@@ -564,7 +562,7 @@ jobs:
           CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime run --dir ${{ env.CPYTHON_PATH }}::/ --env PYTHONPATH=/lib
           CARGO_TARGET_WASM32_WASIP2_RUNNER: wasmtime run --dir ${{ env.CPYTHON_PATH }}::/ --env PYTHONPATH=/lib
           RUSTFLAGS: >
-            -C link-arg=-L${{ env.WASI_SDK_PATH }}/share/wasi-sysroot/lib/wasm32-wasi
+            -C link-arg=-L${{ steps.setup-wasi-sdk.outputs.wasi-sdk-path }}/share/wasi-sysroot/lib/wasm32-wasi
             -C link-arg=-lwasi-emulated-signal
             -C link-arg=-lwasi-emulated-process-clocks
             -C link-arg=-lwasi-emulated-getpid
