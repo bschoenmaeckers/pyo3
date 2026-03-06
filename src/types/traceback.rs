@@ -2,9 +2,12 @@ use crate::err::{error_on_minusone, PyResult};
 use crate::types::{any::PyAnyMethods, string::PyStringMethods, PyString};
 use crate::{ffi, Bound, PyAny};
 #[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
-use crate::{
-    types::{frame::PyFrameMethods, PyFrame},
-    BoundObject, IntoPyObject, PyTypeCheck, Python,
+use {
+    crate::{
+        types::{frame::PyFrameMethods, PyFrame},
+        BoundObject, IntoPyObject, PyTypeCheck, Python,
+    },
+    std::backtrace::Backtrace,
 };
 
 /// Represents a Python traceback.
@@ -59,6 +62,20 @@ impl PyTraceback {
             .expect("at least one frame is required to create a traceback");
 
         Ok(traceback)
+    }
+
+    /// Creates a new traceback object from a Rust backtrace.
+    ///
+    /// This conversion may fail if the backtrace does not actually contain any frames, or when the
+    /// backtrace cannot be parsed.
+    pub fn from_backtrace<'py>(
+        py: Python<'py>,
+        backtrace: &Backtrace,
+    ) -> PyResult<Option<Bound<'py, PyTraceback>>> {
+        btparse::deserialize(backtrace)
+            .ok()
+            .map(|backtrace| PyTraceback::from_frames(py, backtrace.frames))
+            .transpose()
     }
 }
 
@@ -202,6 +219,21 @@ def f():
             ];
 
             let traceback = PyTraceback::from_frames(py, frames).unwrap();
+            assert_eq!(
+                traceback.format().unwrap(), "Traceback (most recent call last):\n  File \"file1.py\", line 10, in func1\n  File \"file2.py\", line 20, in func2\n  File \"file3.py\", line 30, in func3\n"
+            );
+        })
+    }
+
+    #[test]
+    #[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
+    fn test_convert_backtrace() {
+        Python::attach(|py| {
+            let backtrace = Backtrace::force_capture();
+            let traceback = PyTraceback::from_backtrace(py, &backtrace)
+                .expect("Error converting backtrace to traceback")
+                .expect("could not parse backtrace");
+
             assert_eq!(
                 traceback.format().unwrap(), "Traceback (most recent call last):\n  File \"file1.py\", line 10, in func1\n  File \"file2.py\", line 20, in func2\n  File \"file3.py\", line 30, in func3\n"
             );
