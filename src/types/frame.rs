@@ -5,6 +5,7 @@ use crate::PyAny;
 use crate::{ffi, Bound, PyResult, Python};
 use pyo3_ffi::PyObject;
 use std::ffi::CStr;
+use std::panic::Location;
 
 /// Represents a Python frame.
 ///
@@ -44,6 +45,19 @@ impl PyFrame {
             )
         }
     }
+
+    /// Creates a new frame object from a [`Location`].
+    pub fn from_location<'py>(
+        py: Python<'py>,
+        location: &Location<'_>,
+    ) -> PyResult<Bound<'py, PyFrame>> {
+        PyFrame::new(
+            py,
+            location.file_as_c_str(),
+            c"<unknown>",
+            location.line() as _,
+        )
+    }
 }
 
 #[doc(alias = "PyFrame")]
@@ -54,5 +68,19 @@ pub trait PyFrameMethods<'py>: Sealed {
 impl<'py> PyFrameMethods<'py> for Bound<'py, PyFrame> {
     fn line_number(&self) -> i32 {
         unsafe { ffi::PyFrame_GetLineNumber(self.as_ptr().cast()) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_frame_from_location() {
+        Python::attach(|py| {
+            let location = Location::caller();
+            let frame = PyFrame::from_location(py, &location).unwrap();
+            assert_eq!(frame.line_number(), location.line() as i32);
+        })
     }
 }
