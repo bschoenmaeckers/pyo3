@@ -1,7 +1,6 @@
 use crate::err::{error_on_minusone, PyResult};
 use crate::types::{any::PyAnyMethods, string::PyStringMethods, PyString};
 use crate::{ffi, Bound, PyAny};
-#[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
 use crate::{
     types::{frame::PyFrameMethods, PyFrame},
     BoundObject, IntoPyObject, PyTypeCheck, Python,
@@ -26,7 +25,6 @@ pyobject_native_type_core!(
 );
 
 impl PyTraceback {
-    #[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
     pub(crate) fn new<'py>(
         py: Python<'py>,
         next: Option<Bound<'py, PyTraceback>>,
@@ -45,7 +43,6 @@ impl PyTraceback {
     ///
     /// The frames should be ordered from newest to oldest, i.e. the first frame in the iterator
     /// will be the innermost frame in the traceback.
-    #[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
     pub fn from_frames<'py, I>(
         py: Python<'py>,
         frames: I,
@@ -191,7 +188,6 @@ def f():
     }
 
     #[test]
-    #[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
     fn test_create_traceback() {
         Python::attach(|py| {
             // most recent frame first, oldest frame last

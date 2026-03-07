@@ -1,10 +1,21 @@
-use crate::ffi_ptr_ext::FfiPtrExt;
 use crate::sealed::Sealed;
-use crate::types::PyDict;
 use crate::PyAny;
 use crate::{ffi, Bound, PyResult, Python};
-use pyo3_ffi::PyObject;
+#[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
+use crate::{ffi::PyObject, ffi_ptr_ext::FfiPtrExt, types::PyDict};
 use std::ffi::CStr;
+
+#[cfg(not(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy))))]
+use crate::{
+    conversion::IntoPyObjectExt,
+    py_result_ext::PyResultExt,
+    sync::PyOnceLock,
+    types::{
+        any::PyAnyMethods, code::PyCodeMethods, dict::IntoPyDict, typeobject::PyTypeMethods,
+        PyCode, PyCodeInput, PyType,
+    },
+    Py,
+};
 
 /// Represents a Python frame.
 ///
@@ -13,12 +24,25 @@ use std::ffi::CStr;
 #[repr(transparent)]
 pub struct PyFrame(PyAny);
 
+#[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
 pyobject_native_type_core!(
     PyFrame,
     pyobject_native_static_type_object!(ffi::PyFrame_Type),
     "types",
     "FrameType",
     #checkfunction=ffi::PyFrame_Check
+);
+
+#[cfg(not(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy))))]
+pyobject_native_type_core!(
+    PyFrame,
+    |py| {
+        static TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
+        TYPE.import(py, "types", "FrameType").unwrap().as_type_ptr()
+    },
+    "types",
+    "FrameType",
+    #module=Some("types")
 );
 
 impl PyFrame {
@@ -29,19 +53,43 @@ impl PyFrame {
         func_name: &CStr,
         line_number: i32,
     ) -> PyResult<Bound<'py, PyFrame>> {
-        // Safety: Thread is attached because we have a python token
-        let state = unsafe { ffi::compat::PyThreadState_GetUnchecked() };
-        let globals = PyDict::new(py);
-        let locals = PyDict::new(py);
+        #[cfg(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy)))]
+        {
+            // Safety: Thread is attached because we have a python token
+            let state = unsafe { ffi::compat::PyThreadState_GetUnchecked() };
+            let globals = PyDict::new(py);
+            let locals = PyDict::new(py);
 
-        unsafe {
-            let code = ffi::PyCode_NewEmpty(file_name.as_ptr(), func_name.as_ptr(), line_number);
-            Ok(
-                ffi::PyFrame_New(state, code, globals.as_ptr(), locals.as_ptr())
-                    .cast::<PyObject>()
-                    .assume_owned_or_err(py)?
-                    .cast_into_unchecked::<PyFrame>(),
-            )
+            unsafe {
+                let code =
+                    ffi::PyCode_NewEmpty(file_name.as_ptr(), func_name.as_ptr(), line_number);
+                Ok(
+                    ffi::PyFrame_New(state, code, globals.as_ptr(), locals.as_ptr())
+                        .cast::<PyObject>()
+                        .assume_owned_or_err(py)?
+                        .cast_into_unchecked::<PyFrame>(),
+                )
+            }
+        }
+
+        #[cfg(not(all(not(Py_LIMITED_API), not(PyPy), not(GraalPy))))]
+        {
+            let code = PyCode::compile(py, c"raise Exception()", file_name, PyCodeInput::File)?;
+            let kwargs = [
+                ("co_firstlineno", line_number.into_py_any(py)?),
+                ("co_name", func_name.into_py_any(py)?),
+            ]
+            .into_py_dict(py)?;
+
+            let traceback = code
+                .call_method("replace", (), Some(&kwargs))
+                .cast_into::<PyCode>()?
+                .run(None, None)
+                .unwrap_err()
+                .traceback(py)
+                .expect("traceback should be present");
+
+            traceback.getattr("tb_frame").cast_into()
         }
     }
 }
