@@ -498,4 +498,39 @@ mod tests {
                 .is_instance_of::<PyValueError>(py))
         });
     }
+
+    #[test]
+    #[cfg(feature = "macros")]
+    fn test_new_exception_context() {
+        use crate::{
+            pyfunction,
+            types::{PyAnyMethods, PyDict, PyDictMethods},
+            wrap_pyfunction, PyResult,
+        };
+        #[pyfunction(crate = "crate")]
+        fn throw_exception() -> PyResult<()> {
+            Err(PyValueError::new_err("error happened"))
+        }
+
+        Python::attach(|py| {
+            let globals = PyDict::new(py);
+            let f = wrap_pyfunction!(throw_exception, py).unwrap();
+            globals.set_item("throw_exception", f).unwrap();
+            let err = py
+                .run(
+                    c"try:\n  throw_exception()\nexcept:\n  raise RuntimeError(\"boom\")",
+                    Some(&globals),
+                    None,
+                )
+                .unwrap_err();
+
+            let context = err
+                .normalized(py)
+                .pvalue
+                .bind(py)
+                .getattr("__context__")
+                .unwrap();
+            assert!(context.is_instance_of::<PyValueError>())
+        })
+    }
 }
