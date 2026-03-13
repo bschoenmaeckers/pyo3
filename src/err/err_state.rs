@@ -383,22 +383,42 @@ fn lazy_into_normalized_ffi_tuple(
 }
 
 /// Raises a "lazy" exception state into the Python interpreter.
-///
-/// In principle this could be split in two; first a function to create an exception
-/// in a normalized state, and then a call to `PyErr_SetRaisedException` to raise it.
-///
-/// This would require either moving some logic from C to Rust, or requesting a new
-/// API in CPython.
 fn raise_lazy(py: Python<'_>, lazy: Box<PyErrStateLazyFn>) {
     let PyErrStateLazyFnOutput { ptype, pvalue } = lazy(py);
+
     unsafe {
         if ffi::PyExceptionClass_Check(ptype.as_ptr()) == 0 {
             ffi::PyErr_SetString(
                 PyTypeError::type_object_raw(py).cast(),
                 c"exceptions must derive from BaseException".as_ptr(),
-            )
+            );
         } else {
-            ffi::PyErr_SetObject(ptype.as_ptr(), pvalue.as_ptr())
+            #[cfg(not(Py_3_12))]
+            ffi::PyErr_SetObject(ptype.as_ptr(), pvalue.as_ptr());
+
+            #[cfg(Py_3_12)]
+            {
+                let exc = if ffi::PyExceptionInstance_Check(pvalue.as_ptr()) != 0 {
+                    // If it's already an exception instance, keep it as-is.
+                    ffi::Py_NewRef(pvalue.as_ptr())
+                } else if pvalue.as_ptr() == ffi::Py_None() {
+                    // If the value is None, call the type with no arguments.
+                    ffi::PyObject_CallNoArgs(ptype.as_ptr())
+                } else if ffi::PyTuple_Check(pvalue.as_ptr()) != 0 {
+                    // If the value is a tuple, unpack it as arguments to the type.
+                    ffi::PyObject_Call(ptype.as_ptr(), pvalue.as_ptr(), std::ptr::null_mut())
+                } else {
+                    // Fallback: type(value)
+                    ffi::compat::PyObject_CallOneArg(ptype.as_ptr(), pvalue.as_ptr())
+                };
+
+                if exc.is_null() {
+                    // Exception constructor raised an exception, so propagate that instead of the original one.
+                    return;
+                }
+
+                ffi::PyErr_SetRaisedException(exc);
+            }
         }
     }
 }

@@ -18,3 +18,13 @@ compat_function!(
         crate::PyObject_CallMethodObjArgs(obj, name, std::ptr::null_mut::<crate::PyObject>())
     }
 );
+
+compat_function!(
+    // Added to python in 3.9 but available in 3.8 using private vectorcall api
+    originally_defined_for(all(Py_3_8, not(any(Py_LIMITED_API, PyPy))));
+
+    #[inline]
+    pub unsafe fn PyObject_CallOneArg(func: *mut crate::PyObject, arg: *mut crate::PyObject) -> *mut crate::PyObject {
+        crate::PyObject_CallFunctionObjArgs(func, arg, std::ptr::null_mut::<crate::PyObject>())
+    }
+);
