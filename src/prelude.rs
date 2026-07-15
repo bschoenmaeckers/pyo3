@@ -26,6 +26,7 @@ pub use pyo3_macros::{
 pub use crate::wrap_pyfunction;
 
 pub use crate::types::any::PyAnyMethods;
+pub use crate::types::anydict::PyAnyDictMethods;
 pub use crate::types::boolobject::PyBoolMethods;
 pub use crate::types::bytearray::PyByteArrayMethods;
 pub use crate::types::bytes::PyBytesMethods;

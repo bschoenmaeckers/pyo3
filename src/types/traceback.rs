@@ -128,7 +128,7 @@ mod tests {
     use super::*;
     use crate::IntoPyObject;
     use crate::{
-        types::{dict::PyDictMethods, PyDict},
+        types::{PyAnyDictMethods, PyDict},
         PyErr, Python,
     };
 

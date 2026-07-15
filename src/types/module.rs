@@ -75,7 +75,7 @@ impl PyModule {
         let module = unsafe {
             ffi::PyModule_NewObject(name.as_ptr())
                 .assume_owned_or_err(py)?
-                .cast_into_unchecked()
+                .cast_into_unchecked::<PyModule>()
         };
 
         // By default, PyO3 assumes modules do not use the GIL for thread safety.

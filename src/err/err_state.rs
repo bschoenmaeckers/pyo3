@@ -214,7 +214,7 @@ impl PyErrStateNormalized {
             unsafe { ffi::PyErr_GetRaisedException().assume_owned_or_opt(py) }.map(|pvalue| {
                 PyErrStateNormalized {
                     // Safety: PyErr_GetRaisedException returns a valid exception type.
-                    pvalue: unsafe { pvalue.cast_into_unchecked() }.unbind(),
+                    pvalue: unsafe { pvalue.cast_into_unchecked::<PyBaseException>() }.unbind(),
                 }
             })
         }

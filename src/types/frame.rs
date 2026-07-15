@@ -251,7 +251,7 @@ def outer():
                 .unwrap()
                 .call0()
                 .unwrap()
-                .cast_into()
+                .cast_into::<PyFrame>()
                 .unwrap();
 
             let back = frame.outer().unwrap();

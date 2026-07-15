@@ -201,7 +201,7 @@ impl ModuleDef {
                     let module = unsafe {
                         ffi::PyModule_FromDefAndSpec(def, spec.as_ptr()).assume_owned_or_err(py)?
                     }
-                    .cast_into()?;
+                    .cast_into::<PyModule>()?;
                     if unsafe { ffi::PyModule_ExecDef(module.as_ptr(), def) } != 0 {
                         return Err(PyErr::fetch(py));
                     }
@@ -225,7 +225,7 @@ impl ModuleDef {
                         ffi::PyModule_FromSlotsAndSpec(slots, spec.as_ptr())
                             .assume_owned_or_err(py)?
                     }
-                    .cast_into()?;
+                    .cast_into::<PyModule>()?;
                     if unsafe { ffi::PyModule_SetDocString(module.as_ptr(), doc.as_ptr()) } != 0 {
                         return Err(PyErr::fetch(py));
                     }

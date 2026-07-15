@@ -727,7 +727,7 @@ mod rwlock_ext_sealed {
 mod tests {
     use super::*;
 
-    use crate::types::{PyAnyMethods, PyDict, PyDictMethods};
+    use crate::types::{PyAnyDictMethods, PyAnyMethods, PyDict};
     #[cfg(not(target_arch = "wasm32"))]
     #[cfg(feature = "macros")]
     use core::sync::atomic::{AtomicBool, Ordering};

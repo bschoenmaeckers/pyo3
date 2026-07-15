@@ -5,7 +5,7 @@ use crate::type_object::PyTypeInfo;
 use crate::{
     conversion::{FromPyObjectOwned, IntoPyObject},
     instance::Bound,
-    types::{any::PyAnyMethods, dict::PyDictMethods, PyDict},
+    types::{any::PyAnyMethods, anydict::PyAnyDictMethods, dict::PyDictMethods, PyDict},
     Borrowed, FromPyObject, PyAny, PyErr, Python,
 };
 use core::{cmp, hash};

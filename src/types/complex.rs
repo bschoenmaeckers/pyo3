@@ -2,6 +2,7 @@
 use crate::py_result_ext::PyResultExt;
 #[cfg(not(any(Py_LIMITED_API, PyPy, GraalPy)))]
 use crate::types::any::PyAnyMethods;
+use crate::types::PyInt;
 use crate::{ffi, Bound, PyAny, Python};
 #[cfg(RustPython)]
 use crate::{
@@ -255,7 +256,7 @@ impl<'py> PyComplexMethods<'py> for Bound<'py, PyComplex> {
     #[cfg(not(any(Py_LIMITED_API, PyPy, GraalPy)))]
     fn abs(&self) -> c_double {
         PyAnyMethods::abs(self.as_any())
-            .cast_into()
+            .cast_into::<PyInt>()
             .expect("Complex method __abs__ failed.")
             .extract()
             .expect("Failed to extract to c double.")

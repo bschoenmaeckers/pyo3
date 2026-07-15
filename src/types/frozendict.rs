@@ -1,11 +1,10 @@
 use crate::conversion;
-use crate::err::{self, PyErr, PyResult};
+use crate::err::{self, PyResult};
 use crate::ffi_ptr_ext::FfiPtrExt;
 use crate::instance::Bound;
-#[cfg(Py_LIMITED_API)]
-use crate::types::PyAnyMethods;
-use crate::types::{PyAny, PyList, PyMapping};
-use crate::{ffi, Borrowed, BoundObject, IntoPyObject, IntoPyObjectExt, Python};
+use crate::types::anydict::{PyAnyDict, PyAnyDictMethods};
+use crate::types::{PyAny, PyMapping};
+use crate::{ffi, BoundObject, IntoPyObject, Py, Python};
 #[cfg(Py_LIMITED_API)]
 use crate::{
     sync::PyOnceLock,
@@ -13,6 +12,7 @@ use crate::{
     types::{PyType, PyTypeMethods},
     Py,
 };
+use core::ops::Deref;
 #[cfg(not(Py_LIMITED_API))]
 use core::ptr;
 
@@ -29,16 +29,17 @@ use core::ptr;
 pub struct PyFrozenDict(PyAny);
 
 #[cfg(not(Py_LIMITED_API))]
-pyobject_native_type_core!(
+pyobject_native_type_info!(
     PyFrozenDict,
     pyobject_native_static_type_object!(ffi::PyFrozenDict_Type),
     "builtins",
     "frozendict",
+    Some("builtins"),
     #checkfunction=ffi::PyFrozenDict_Check
 );
 
 #[cfg(Py_LIMITED_API)]
-pyobject_native_type_core!(
+pyobject_native_type_info!(
     PyFrozenDict,
     |py| {
         static TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
@@ -47,8 +48,53 @@ pyobject_native_type_core!(
             .as_type_ptr()
     },
     "builtins",
-    "frozendict"
+    "frozendict",
+    Some("builtins")
 );
+
+impl<'py> Deref for Bound<'py, PyFrozenDict> {
+    type Target = Bound<'py, PyAnyDict>;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_any_dict()
+    }
+}
+
+impl From<Bound<'_, PyFrozenDict>> for Py<PyAny> {
+    fn from(dict: Bound<'_, PyFrozenDict>) -> Self {
+        dict.into_any().unbind()
+    }
+}
+
+impl From<Py<PyFrozenDict>> for Py<PyAny> {
+    fn from(dict: Py<PyFrozenDict>) -> Self {
+        dict.into_any()
+    }
+}
+
+impl<'py> From<Bound<'py, PyFrozenDict>> for Bound<'py, PyAnyDict> {
+    fn from(dict: Bound<'py, PyFrozenDict>) -> Self {
+        dict.into_any_dict()
+    }
+}
+
+impl<'py> AsRef<Bound<'py, PyAnyDict>> for Bound<'py, PyFrozenDict> {
+    fn as_ref(&self) -> &Bound<'py, PyAnyDict> {
+        self.as_any_dict()
+    }
+}
+
+impl<'py> From<Bound<'py, PyFrozenDict>> for Bound<'py, PyMapping> {
+    fn from(dict: Bound<'py, PyFrozenDict>) -> Self {
+        dict.into_any_dict().into_mapping()
+    }
+}
+
+impl<'py> AsRef<Bound<'py, PyMapping>> for Bound<'py, PyFrozenDict> {
+    fn as_ref(&self) -> &Bound<'py, PyMapping> {
+        self.as_any_dict().as_mapping()
+    }
+}
 
 impl PyFrozenDict {
     /// Creates a new frozendict.
@@ -98,157 +144,30 @@ impl PyFrozenDict {
 /// because stable Rust does not yet support`arbitrary_self_types`.
 #[doc(alias = "PyFrozenDict")]
 pub trait PyFrozenDictMethods<'py>: crate::sealed::Sealed {
-    /// Return the number of items in the frozendict.
-    ///
-    /// This is equivalent to the Python expression `len(self)`.
-    fn len(&self) -> usize;
+    /// Returns `self` cast as [`PyAnyDict`].
+    fn as_any_dict(&self) -> &Bound<'py, PyAnyDict>;
 
-    /// Checks if the frozendict is empty, i.e. `len(self) == 0`.
-    fn is_empty(&self) -> bool;
-
-    /// Determines if the frozendict contains the specified key.
-    ///
-    /// This is equivalent to the Python expression `key in self`.
-    fn contains<K>(&self, key: K) -> PyResult<bool>
-    where
-        K: IntoPyObject<'py>;
-
-    /// Gets an item from the frozendict.
-    ///
-    /// Returns `None` if the item is not present, or if an error occurs.
-    ///
-    /// To get a `KeyError` for non-existing keys, use `PyAny::get_item`.
-    fn get_item<K>(&self, key: K) -> PyResult<Option<Bound<'py, PyAny>>>
-    where
-        K: IntoPyObject<'py>;
-
-    /// Returns a list of all keys in the frozendict.
-    ///
-    /// This is equivalent to the Python expression `list(self.keys())`.
-    fn keys(&self) -> Bound<'py, PyList>;
-
-    /// Returns a list of all values in the frozendict.
-    ///
-    /// This is equivalent to the Python expression `list(self.values())`.
-    fn values(&self) -> Bound<'py, PyList>;
-
-    /// Returns a list of all (key, value) tuples in the frozendict.
-    ///
-    /// This is equivalent to the Python expression `list(self.items())`.
-    fn items(&self) -> Bound<'py, PyList>;
+    /// Returns `self` cast as [`PyAnyDict`].
+    fn into_any_dict(self) -> Bound<'py, PyAnyDict>;
 
     /// Returns an iterator of `(key, value)` tuples in this frozendict.
     ///
     /// Since `frozendict` objects are immutable, iteration does not need the
     /// mutation guards that are required for a standard dict.
     fn iter(&self) -> BoundFrozenDictIterator<'py>;
-
-    /// Returns `self` cast as a `PyMapping`.
-    ///
-    /// This is a zero-cost conversion that allows using the frozendict
-    /// with methods that accept a mapping protocol object.
-    fn as_mapping(&self) -> &Bound<'py, PyMapping>;
-
-    /// Returns `self` cast as a `PyMapping`.
-    ///
-    /// This is a zero-cost conversion that allows using the frozendict
-    /// with methods that accept a mapping protocol object.
-    fn into_mapping(self) -> Bound<'py, PyMapping>;
 }
 
 impl<'py> PyFrozenDictMethods<'py> for Bound<'py, PyFrozenDict> {
-    #[inline]
-    fn len(&self) -> usize {
-        unsafe { ffi::PyDict_Size(self.as_ptr()) as usize }
+    fn as_any_dict(&self) -> &Bound<'py, PyAnyDict> {
+        unsafe { self.cast_unchecked() }
     }
 
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn contains<K>(&self, key: K) -> PyResult<bool>
-    where
-        K: IntoPyObject<'py>,
-    {
-        fn inner(fd: &Bound<'_, PyFrozenDict>, key: Borrowed<'_, '_, PyAny>) -> PyResult<bool> {
-            match unsafe { ffi::PyDict_Contains(fd.as_ptr(), key.as_ptr()) } {
-                1 => Ok(true),
-                0 => Ok(false),
-                _ => Err(PyErr::fetch(fd.py())),
-            }
-        }
-
-        let py = self.py();
-        inner(
-            self,
-            key.into_pyobject_or_pyerr(py)?.into_any().as_borrowed(),
-        )
-    }
-
-    fn get_item<K>(&self, key: K) -> PyResult<Option<Bound<'py, PyAny>>>
-    where
-        K: IntoPyObject<'py>,
-    {
-        fn inner<'py>(
-            fd: &Bound<'py, PyFrozenDict>,
-            key: Borrowed<'_, '_, PyAny>,
-        ) -> PyResult<Option<Bound<'py, PyAny>>> {
-            let py = fd.py();
-            let mut result: *mut ffi::PyObject = core::ptr::null_mut();
-            match unsafe { ffi::compat::PyDict_GetItemRef(fd.as_ptr(), key.as_ptr(), &mut result) }
-            {
-                core::ffi::c_int::MIN..=-1 => Err(PyErr::fetch(py)),
-                0 => Ok(None),
-                1..=core::ffi::c_int::MAX => {
-                    // Safety: PyDict_GetItemRef positive return value means the result is a valid
-                    // owned reference
-                    Ok(Some(unsafe { result.assume_owned_unchecked(py) }))
-                }
-            }
-        }
-
-        let py = self.py();
-        inner(
-            self,
-            key.into_pyobject_or_pyerr(py)?.into_any().as_borrowed(),
-        )
-    }
-
-    fn keys(&self) -> Bound<'py, PyList> {
-        unsafe {
-            ffi::PyDict_Keys(self.as_ptr())
-                .assume_owned(self.py())
-                .cast_into_unchecked()
-        }
-    }
-
-    fn values(&self) -> Bound<'py, PyList> {
-        unsafe {
-            ffi::PyDict_Values(self.as_ptr())
-                .assume_owned(self.py())
-                .cast_into_unchecked()
-        }
-    }
-
-    fn items(&self) -> Bound<'py, PyList> {
-        unsafe {
-            ffi::PyDict_Items(self.as_ptr())
-                .assume_owned(self.py())
-                .cast_into_unchecked()
-        }
+    fn into_any_dict(self) -> Bound<'py, PyAnyDict> {
+        unsafe { self.cast_into_unchecked() }
     }
 
     fn iter(&self) -> BoundFrozenDictIterator<'py> {
         BoundFrozenDictIterator::new(self.clone())
-    }
-
-    fn as_mapping(&self) -> &Bound<'py, PyMapping> {
-        unsafe { self.cast_unchecked() }
-    }
-
-    fn into_mapping(self) -> Bound<'py, PyMapping> {
-        unsafe { self.cast_into_unchecked() }
     }
 }
 
@@ -324,7 +243,7 @@ impl<'py> IntoIterator for Bound<'py, PyFrozenDict> {
 
     /// Returns an iterator over the `(key, value)` pairs in this frozendict.
     fn into_iter(self) -> Self::IntoIter {
-        BoundFrozenDictIterator::new(self)
+        self.iter()
     }
 }
 

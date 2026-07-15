@@ -2222,7 +2222,7 @@ where
 {
     fn from(pyref: PyRef<'py, T>) -> Self {
         // SAFETY: PyRef::as_ptr returns a borrowed reference to a valid object of type T
-        unsafe { Bound::from_borrowed_ptr(pyref.py(), pyref.as_ptr()).cast_into_unchecked() }
+        unsafe { Bound::from_borrowed_ptr(pyref.py(), pyref.as_ptr()).cast_into_unchecked::<T>() }
             .unbind()
     }
 }
@@ -2233,7 +2233,7 @@ where
 {
     fn from(pyref: PyRefMut<'py, T>) -> Self {
         // SAFETY: PyRefMut::as_ptr returns a borrowed reference to a valid object of type T
-        unsafe { Bound::from_borrowed_ptr(pyref.py(), pyref.as_ptr()).cast_into_unchecked() }
+        unsafe { Bound::from_borrowed_ptr(pyref.py(), pyref.as_ptr()).cast_into_unchecked::<T>() }
             .unbind()
     }
 }

@@ -947,7 +947,7 @@ mod tests {
 
     #[test]
     fn test_py_run_inserts_globals() {
-        use crate::types::dict::PyDictMethods;
+        use crate::types::PyAnyDictMethods;
 
         Python::attach(|py| {
             let namespace = PyDict::new(py);

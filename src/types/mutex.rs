@@ -279,7 +279,7 @@ mod tests {
 
     use super::*;
     #[cfg(not(target_arch = "wasm32"))]
-    use crate::types::{PyAnyMethods, PyDict, PyDictMethods, PyNone};
+    use crate::types::{PyAnyDictMethods, PyAnyMethods, PyDict, PyDictMethods, PyNone};
     #[cfg(not(target_arch = "wasm32"))]
     use crate::Py;
     #[cfg(not(target_arch = "wasm32"))]

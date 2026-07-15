@@ -1,16 +1,18 @@
-use crate::err::{self, PyErr, PyResult};
+use crate::err::{self, PyResult};
 use crate::ffi::Py_ssize_t;
 use crate::ffi_ptr_ext::FfiPtrExt;
 use crate::instance::{Borrowed, Bound};
 use crate::py_result_ext::PyResultExt;
-use crate::types::{PyAny, PyList, PyMapping};
-use crate::{ffi, BoundObject, IntoPyObject, IntoPyObjectExt, Python};
+use crate::types::anydict::{PyAnyDict, PyAnyDictMethods};
+use crate::types::{PyAny, PyMapping};
+use crate::{ffi, BoundObject, IntoPyObject, IntoPyObjectExt, Py, Python};
 #[cfg(RustPython)]
 use crate::{
     sync::PyOnceLock,
     types::{PyType, PyTypeMethods},
     Py,
 };
+use core::ops::Deref;
 
 /// Represents a Python `dict`.
 ///
@@ -26,17 +28,20 @@ pub struct PyDict(PyAny);
 pyobject_subclassable_native_type!(PyDict, crate::ffi::PyDictObject);
 
 #[cfg(not(RustPython))]
-pyobject_native_type!(
+pyobject_native_type_info!(
     PyDict,
-    ffi::PyDictObject,
     pyobject_native_static_type_object!(ffi::PyDict_Type),
     "builtins",
     "dict",
+    Some("builtins"),
     #checkfunction=ffi::PyDict_Check
 );
 
+#[cfg(all(not(RustPython), not(Py_LIMITED_API)))]
+pyobject_native_type_sized!(PyDict, ffi::PyDictObject);
+
 #[cfg(RustPython)]
-pyobject_native_type_core!(
+pyobject_native_type_info!(
     PyDict,
     |py| {
         static TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
@@ -44,8 +49,53 @@ pyobject_native_type_core!(
     },
     "builtins",
     "dict",
+    Some("builtins"),
     #checkfunction=ffi::PyDict_Check
 );
+
+impl<'py> Deref for Bound<'py, PyDict> {
+    type Target = Bound<'py, PyAnyDict>;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_any_dict()
+    }
+}
+
+impl From<Bound<'_, PyDict>> for Py<PyAny> {
+    fn from(dict: Bound<'_, PyDict>) -> Self {
+        dict.into_any().unbind()
+    }
+}
+
+impl From<Py<PyDict>> for Py<PyAny> {
+    fn from(dict: Py<PyDict>) -> Self {
+        dict.into_any()
+    }
+}
+
+impl<'py> From<Bound<'py, PyDict>> for Bound<'py, PyAnyDict> {
+    fn from(dict: Bound<'py, PyDict>) -> Self {
+        dict.into_any_dict()
+    }
+}
+
+impl<'py> AsRef<Bound<'py, PyAnyDict>> for Bound<'py, PyDict> {
+    fn as_ref(&self) -> &Bound<'py, PyAnyDict> {
+        self.as_any_dict()
+    }
+}
+
+impl<'py> From<Bound<'py, PyDict>> for Bound<'py, PyMapping> {
+    fn from(dict: Bound<'py, PyDict>) -> Self {
+        dict.into_any_dict().into_mapping()
+    }
+}
+
+impl<'py> AsRef<Bound<'py, PyMapping>> for Bound<'py, PyDict> {
+    fn as_ref(&self) -> &Bound<'py, PyMapping> {
+        self.as_any_dict().as_mapping()
+    }
+}
 
 /// Represents a Python `dict_keys`.
 #[cfg(not(any(PyPy, GraalPy, RustPython)))]
@@ -128,30 +178,6 @@ pub trait PyDictMethods<'py>: crate::sealed::Sealed {
     /// Empties an existing dictionary of all key-value pairs.
     fn clear(&self);
 
-    /// Return the number of items in the dictionary.
-    ///
-    /// This is equivalent to the Python expression `len(self)`.
-    fn len(&self) -> usize;
-
-    /// Checks if the dict is empty, i.e. `len(self) == 0`.
-    fn is_empty(&self) -> bool;
-
-    /// Determines if the dictionary contains the specified key.
-    ///
-    /// This is equivalent to the Python expression `key in self`.
-    fn contains<K>(&self, key: K) -> PyResult<bool>
-    where
-        K: IntoPyObject<'py>;
-
-    /// Gets an item from the dictionary.
-    ///
-    /// Returns `None` if the item is not present, or if an error occurs.
-    ///
-    /// To get a `KeyError` for non-existing keys, use `PyAny::get_item`.
-    fn get_item<K>(&self, key: K) -> PyResult<Option<Bound<'py, PyAny>>>
-    where
-        K: IntoPyObject<'py>;
-
     /// Sets an item value.
     ///
     /// This is equivalent to the Python statement `self[key] = value`.
@@ -166,21 +192,6 @@ pub trait PyDictMethods<'py>: crate::sealed::Sealed {
     fn del_item<K>(&self, key: K) -> PyResult<()>
     where
         K: IntoPyObject<'py>;
-
-    /// Returns a list of dict keys.
-    ///
-    /// This is equivalent to the Python expression `list(dict.keys())`.
-    fn keys(&self) -> Bound<'py, PyList>;
-
-    /// Returns a list of dict values.
-    ///
-    /// This is equivalent to the Python expression `list(dict.values())`.
-    fn values(&self) -> Bound<'py, PyList>;
-
-    /// Returns a list of dict items.
-    ///
-    /// This is equivalent to the Python expression `list(dict.items())`.
-    fn items(&self) -> Bound<'py, PyList>;
 
     /// Returns an iterator of `(key, value)` pairs in this dictionary.
     ///
@@ -204,9 +215,6 @@ pub trait PyDictMethods<'py>: crate::sealed::Sealed {
     fn locked_for_each<F>(&self, closure: F) -> PyResult<()>
     where
         F: Fn(Bound<'py, PyAny>, Bound<'py, PyAny>) -> PyResult<()>;
-
-    /// Returns `self` cast as a `PyMapping`.
-    fn as_mapping(&self) -> &Bound<'py, PyMapping>;
 
     /// Returns `self` cast as a `PyMapping`.
     fn into_mapping(self) -> Bound<'py, PyMapping>;
@@ -249,6 +257,12 @@ pub trait PyDictMethods<'py>: crate::sealed::Sealed {
     where
         K: IntoPyObject<'py>,
         V: IntoPyObject<'py>;
+
+    /// Returns `self` cast as [`PyAnyDict`].
+    fn as_any_dict(&self) -> &Bound<'py, PyAnyDict>;
+
+    /// Returns `self` cast as [`PyAnyDict`].
+    fn into_any_dict(self) -> Bound<'py, PyAnyDict>;
 }
 
 impl<'py> PyDictMethods<'py> for Bound<'py, PyDict> {
@@ -262,63 +276,6 @@ impl<'py> PyDictMethods<'py> for Bound<'py, PyDict> {
 
     fn clear(&self) {
         unsafe { ffi::PyDict_Clear(self.as_ptr()) }
-    }
-
-    fn len(&self) -> usize {
-        dict_len(self) as usize
-    }
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn contains<K>(&self, key: K) -> PyResult<bool>
-    where
-        K: IntoPyObject<'py>,
-    {
-        fn inner(dict: &Bound<'_, PyDict>, key: Borrowed<'_, '_, PyAny>) -> PyResult<bool> {
-            match unsafe { ffi::PyDict_Contains(dict.as_ptr(), key.as_ptr()) } {
-                1 => Ok(true),
-                0 => Ok(false),
-                _ => Err(PyErr::fetch(dict.py())),
-            }
-        }
-
-        let py = self.py();
-        inner(
-            self,
-            key.into_pyobject_or_pyerr(py)?.into_any().as_borrowed(),
-        )
-    }
-
-    fn get_item<K>(&self, key: K) -> PyResult<Option<Bound<'py, PyAny>>>
-    where
-        K: IntoPyObject<'py>,
-    {
-        fn inner<'py>(
-            dict: &Bound<'py, PyDict>,
-            key: Borrowed<'_, '_, PyAny>,
-        ) -> PyResult<Option<Bound<'py, PyAny>>> {
-            let py = dict.py();
-            let mut result: *mut ffi::PyObject = core::ptr::null_mut();
-            match unsafe {
-                ffi::compat::PyDict_GetItemRef(dict.as_ptr(), key.as_ptr(), &mut result)
-            } {
-                core::ffi::c_int::MIN..=-1 => Err(PyErr::fetch(py)),
-                0 => Ok(None),
-                1..=core::ffi::c_int::MAX => {
-                    // Safety: PyDict_GetItemRef positive return value means the result is a valid
-                    // owned reference
-                    Ok(Some(unsafe { result.assume_owned_unchecked(py) }))
-                }
-            }
-        }
-
-        let py = self.py();
-        inner(
-            self,
-            key.into_pyobject_or_pyerr(py)?.into_any().as_borrowed(),
-        )
     }
 
     fn set_item<K, V>(&self, key: K, value: V) -> PyResult<()>
@@ -361,30 +318,6 @@ impl<'py> PyDictMethods<'py> for Bound<'py, PyDict> {
         )
     }
 
-    fn keys(&self) -> Bound<'py, PyList> {
-        unsafe {
-            ffi::PyDict_Keys(self.as_ptr())
-                .assume_owned(self.py())
-                .cast_into_unchecked()
-        }
-    }
-
-    fn values(&self) -> Bound<'py, PyList> {
-        unsafe {
-            ffi::PyDict_Values(self.as_ptr())
-                .assume_owned(self.py())
-                .cast_into_unchecked()
-        }
-    }
-
-    fn items(&self) -> Bound<'py, PyList> {
-        unsafe {
-            ffi::PyDict_Items(self.as_ptr())
-                .assume_owned(self.py())
-                .cast_into_unchecked()
-        }
-    }
-
     fn iter(&self) -> BoundDictIterator<'py> {
         BoundDictIterator::new(self.clone())
     }
@@ -402,18 +335,14 @@ impl<'py> PyDictMethods<'py> for Bound<'py, PyDict> {
 
         #[cfg(not(feature = "nightly"))]
         {
-            crate::sync::critical_section::with_critical_section(self, || {
+            crate::sync::critical_section::with_critical_section(self.as_any(), || {
                 self.iter().try_for_each(|(key, value)| f(key, value))
             })
         }
     }
 
-    fn as_mapping(&self) -> &Bound<'py, PyMapping> {
-        unsafe { self.cast_unchecked() }
-    }
-
     fn into_mapping(self) -> Bound<'py, PyMapping> {
-        unsafe { self.cast_into_unchecked() }
+        self.into_any_dict().into_mapping()
     }
 
     fn update(&self, other: &Bound<'_, PyMapping>) -> PyResult<()> {
@@ -502,6 +431,14 @@ impl<'py> PyDictMethods<'py> for Bound<'py, PyDict> {
                 .as_borrowed(),
             py,
         )
+    }
+
+    fn as_any_dict(&self) -> &Bound<'py, PyAnyDict> {
+        unsafe { self.cast_unchecked() }
+    }
+
+    fn into_any_dict(self) -> Bound<'py, PyAnyDict> {
+        unsafe { self.cast_into_unchecked() }
     }
 }
 
@@ -953,7 +890,7 @@ mod tests {
     use super::*;
     use crate::platform::prelude::*;
     use crate::platform::HashMap;
-    use crate::types::{PyAnyMethods as _, PyTuple};
+    use crate::types::{PyAnyMethods as _, PyList, PyTuple};
     use alloc::collections::BTreeMap;
 
     #[test]

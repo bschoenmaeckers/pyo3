@@ -151,6 +151,7 @@ mod tests {
     use crate::platform::prelude::*;
     use crate::platform::HashMap;
     use crate::types::dict::*;
+    use crate::types::PyAnyDictMethods;
     use crate::Python;
     use crate::{
         exceptions::PyKeyError,

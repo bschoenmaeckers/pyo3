@@ -57,7 +57,7 @@ impl PyType {
     ) -> Bound<'_, PyType> {
         unsafe {
             Borrowed::from_ptr_unchecked(py, p.cast())
-                .cast_unchecked()
+                .cast_unchecked::<PyType>()
                 .to_owned()
         }
     }

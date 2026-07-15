@@ -97,7 +97,8 @@ impl PyList {
             .try_into()
             .expect("out of range integral type conversion attempted on `elements.len()`");
 
-        let list = unsafe { ffi::PyList_New(len).assume_owned(py).cast_into_unchecked() };
+        let list: Bound<'_, PyList> =
+            unsafe { ffi::PyList_New(len).assume_owned(py).cast_into_unchecked() };
 
         let count = (&mut elements)
             .take(len as usize)
