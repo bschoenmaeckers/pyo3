@@ -3,6 +3,9 @@ use crate::object::*;
 #[cfg(not(any(PyPy, GraalPy)))]
 use crate::pyport::Py_ssize_t;
 
+#[cfg(Py_3_15)]
+use crate::{dictobject::PyDict_Check, PyDict_CheckExact};
+
 #[cfg(all(not(PyPy), Py_3_13))]
 use core::ffi::c_char;
 #[cfg(all(not(PyPy), Py_3_12))]
@@ -46,7 +49,32 @@ pub struct PyDictObject {
 
 extern_libpython! {
     #[cfg(Py_3_15)]
-    pub fn PyFrozenDict_New(iterable: *mut PyObject) -> *mut PyObject;
+    pub static mut PyFrozenDict_Type: PyTypeObject;
+}
+
+#[inline]
+#[cfg(Py_3_15)]
+pub unsafe fn PyFrozenDict_CheckExact(op: *mut PyObject) -> c_int {
+    (Py_TYPE(op) == &raw mut PyFrozenDict_Type) as c_int
+}
+
+#[inline]
+#[cfg(Py_3_15)]
+pub unsafe fn PyFrozenDict_Check(op: *mut PyObject) -> c_int {
+    (Py_TYPE(op) == &raw mut PyFrozenDict_Type
+        || PyType_IsSubtype(Py_TYPE(op), &raw mut PyFrozenDict_Type) != 0) as c_int
+}
+
+#[inline]
+#[cfg(Py_3_15)]
+pub unsafe fn PyAnyDict_Check(op: *mut PyObject) -> c_int {
+    (PyDict_Check(op) != 0 || PyFrozenDict_Check(op) != 0) as c_int
+}
+
+#[inline]
+#[cfg(Py_3_15)]
+pub unsafe fn PyAnyDict_CheckExact(op: *mut PyObject) -> c_int {
+    (PyDict_CheckExact(op) != 0 || PyFrozenDict_CheckExact(op) != 0) as c_int
 }
 
 // skipped private _PyDict_GetItem_KnownHash
@@ -109,4 +137,9 @@ extern_libpython! {
     #[cfg(Py_3_12)]
     #[cfg(not(GraalPy))]
     pub fn PyDict_Unwatch(watcher_id: c_int, dict: *mut PyObject) -> c_int;
+}
+
+extern_libpython! {
+    #[cfg(Py_3_15)]
+    pub fn PyFrozenDict_New(iterable: *mut PyObject) -> *mut PyObject;
 }
