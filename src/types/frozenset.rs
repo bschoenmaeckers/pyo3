@@ -1,6 +1,7 @@
+use crate::types::anyset::PyAnySet;
 use crate::types::PyIterator;
 use crate::{
-    err::{self, PyErr, PyResult},
+    err::{self, PyResult},
     ffi,
     ffi_ptr_ext::FfiPtrExt,
     py_result_ext::PyResultExt,
@@ -13,6 +14,7 @@ use crate::{
     Py,
 };
 use crate::{Borrowed, BoundObject, IntoPyObject, IntoPyObjectExt};
+use core::ops::Deref;
 use core::ptr;
 
 /// Allows building a Python `frozenset` one item at a time
@@ -67,37 +69,62 @@ pub struct PyFrozenSet(PyAny);
 
 #[cfg(not(any(PyPy, GraalPy)))]
 pyobject_subclassable_native_type!(PyFrozenSet, crate::ffi::PySetObject);
+
 #[cfg(all(not(any(PyPy, GraalPy)), not(RustPython)))]
-pyobject_native_type!(
+pyobject_native_type_info!(
     PyFrozenSet,
-    ffi::PySetObject,
     pyobject_native_static_type_object!(ffi::PyFrozenSet_Type),
     "builtins",
     "frozenset",
+    Some("builtins"),
     #checkfunction=ffi::PyFrozenSet_Check
 );
 
+#[cfg(all(not(any(PyPy, GraalPy, RustPython)), not(Py_LIMITED_API)))]
+pyobject_native_type_sized!(PyFrozenSet, ffi::PySetObject);
+
 #[cfg(all(not(any(PyPy, GraalPy)), RustPython))]
-pyobject_native_type!(
+pyobject_native_type_info!(
     PyFrozenSet,
-    ffi::PySetObject,
     |py| {
         static TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
         TYPE.import(py, "builtins", "frozenset").unwrap().as_type_ptr()
     },
     "builtins",
     "frozenset",
+    Some("builtins"),
     #checkfunction=ffi::PyFrozenSet_Check
 );
 
 #[cfg(any(PyPy, GraalPy))]
-pyobject_native_type_core!(
+pyobject_native_type_info!(
     PyFrozenSet,
     pyobject_native_static_type_object!(ffi::PyFrozenSet_Type),
     "builtins",
     "frozenset",
+    Some("builtins"),
     #checkfunction=ffi::PyFrozenSet_Check
 );
+
+impl<'py> Deref for Bound<'py, PyFrozenSet> {
+    type Target = Bound<'py, PyAnySet>;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_any_set()
+    }
+}
+
+impl<'py> From<Bound<'py, PyFrozenSet>> for Bound<'py, PyAnySet> {
+    fn from(set: Bound<'py, PyFrozenSet>) -> Self {
+        set.into_any_set()
+    }
+}
+
+impl<'py> AsRef<Bound<'py, PyAnySet>> for Bound<'py, PyFrozenSet> {
+    fn as_ref(&self) -> &Bound<'py, PyAnySet> {
+        self.as_any_set()
+    }
+}
 
 impl PyFrozenSet {
     /// Creates a new frozenset.
@@ -135,53 +162,23 @@ impl PyFrozenSet {
 /// `arbitrary_self_types`.
 #[doc(alias = "PyFrozenSet")]
 pub trait PyFrozenSetMethods<'py>: crate::sealed::Sealed {
-    /// Returns the number of items in the set.
-    ///
-    /// This is equivalent to the Python expression `len(self)`.
-    fn len(&self) -> usize;
+    /// Returns `self` cast as [`PyAnySet`].
+    fn as_any_set(&self) -> &Bound<'py, PyAnySet>;
 
-    /// Checks if set is empty.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Determines if the set contains the specified key.
-    ///
-    /// This is equivalent to the Python expression `key in self`.
-    fn contains<K>(&self, key: K) -> PyResult<bool>
-    where
-        K: IntoPyObject<'py>;
+    /// Returns `self` cast as [`PyAnySet`].
+    fn into_any_set(self) -> Bound<'py, PyAnySet>;
 
     /// Returns an iterator of values in this set.
     fn iter(&self) -> BoundFrozenSetIterator<'py>;
 }
 
 impl<'py> PyFrozenSetMethods<'py> for Bound<'py, PyFrozenSet> {
-    #[inline]
-    fn len(&self) -> usize {
-        unsafe { ffi::PySet_Size(self.as_ptr()) as usize }
+    fn as_any_set(&self) -> &Bound<'py, PyAnySet> {
+        unsafe { self.cast_unchecked() }
     }
 
-    fn contains<K>(&self, key: K) -> PyResult<bool>
-    where
-        K: IntoPyObject<'py>,
-    {
-        fn inner(
-            frozenset: &Bound<'_, PyFrozenSet>,
-            key: Borrowed<'_, '_, PyAny>,
-        ) -> PyResult<bool> {
-            match unsafe { ffi::PySet_Contains(frozenset.as_ptr(), key.as_ptr()) } {
-                1 => Ok(true),
-                0 => Ok(false),
-                _ => Err(PyErr::fetch(frozenset.py())),
-            }
-        }
-
-        let py = self.py();
-        inner(
-            self,
-            key.into_pyobject_or_pyerr(py)?.into_any().as_borrowed(),
-        )
+    fn into_any_set(self) -> Bound<'py, PyAnySet> {
+        unsafe { self.cast_into_unchecked() }
     }
 
     fn iter(&self) -> BoundFrozenSetIterator<'py> {

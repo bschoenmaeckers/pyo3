@@ -1,3 +1,4 @@
+use crate::types::anyset::{PyAnySet, PyAnySetMethods};
 use crate::types::PyIterator;
 use crate::{
     err::{self, PyErr, PyResult},
@@ -12,6 +13,7 @@ use crate::{
     types::{PyType, PyTypeMethods},
     Py,
 };
+use core::ops::Deref;
 use core::ptr;
 
 /// Represents a Python `set`.
@@ -28,36 +30,60 @@ pub struct PySet(PyAny);
 pyobject_subclassable_native_type!(PySet, crate::ffi::PySetObject);
 
 #[cfg(all(not(any(PyPy, GraalPy)), not(RustPython)))]
-pyobject_native_type!(
+pyobject_native_type_info!(
     PySet,
-    ffi::PySetObject,
     pyobject_native_static_type_object!(ffi::PySet_Type),
     "builtins",
     "set",
+    Some("builtins"),
     #checkfunction=ffi::PySet_Check
 );
 
+#[cfg(all(not(any(PyPy, GraalPy, RustPython)), not(Py_LIMITED_API)))]
+pyobject_native_type_sized!(PySet, ffi::PySetObject);
+
 #[cfg(all(not(any(PyPy, GraalPy)), RustPython))]
-pyobject_native_type!(
+pyobject_native_type_info!(
     PySet,
-    ffi::PySetObject,
     |py| {
         static TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();
         TYPE.import(py, "builtins", "set").unwrap().as_type_ptr()
     },
     "builtins",
     "set",
+    Some("builtins"),
     #checkfunction=ffi::PySet_Check
 );
 
 #[cfg(any(PyPy, GraalPy))]
-pyobject_native_type_core!(
+pyobject_native_type_info!(
     PySet,
     pyobject_native_static_type_object!(ffi::PySet_Type),
     "builtins",
     "set",
+    Some("builtins"),
     #checkfunction=ffi::PySet_Check
 );
+
+impl<'py> Deref for Bound<'py, PySet> {
+    type Target = Bound<'py, PyAnySet>;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_any_set()
+    }
+}
+
+impl<'py> From<Bound<'py, PySet>> for Bound<'py, PyAnySet> {
+    fn from(set: Bound<'py, PySet>) -> Self {
+        set.into_any_set()
+    }
+}
+
+impl<'py> AsRef<Bound<'py, PyAnySet>> for Bound<'py, PySet> {
+    fn as_ref(&self) -> &Bound<'py, PyAnySet> {
+        self.as_any_set()
+    }
+}
 
 impl PySet {
     /// Creates a new set with elements from the given slice.
@@ -130,6 +156,12 @@ pub trait PySetMethods<'py>: crate::sealed::Sealed {
     /// Removes and returns an arbitrary element from the set.
     fn pop(&self) -> Option<Bound<'py, PyAny>>;
 
+    /// Returns `self` cast as [`PyAnySet`].
+    fn as_any_set(&self) -> &Bound<'py, PyAnySet>;
+
+    /// Returns `self` cast as [`PyAnySet`].
+    fn into_any_set(self) -> Bound<'py, PyAnySet>;
+
     /// Returns an iterator of values in this set.
     ///
     /// # Panics
@@ -148,26 +180,14 @@ impl<'py> PySetMethods<'py> for Bound<'py, PySet> {
 
     #[inline]
     fn len(&self) -> usize {
-        unsafe { ffi::PySet_Size(self.as_ptr()) as usize }
+        self.as_any_set().len()
     }
 
     fn contains<K>(&self, key: K) -> PyResult<bool>
     where
         K: IntoPyObject<'py>,
     {
-        fn inner(set: &Bound<'_, PySet>, key: Borrowed<'_, '_, PyAny>) -> PyResult<bool> {
-            match unsafe { ffi::PySet_Contains(set.as_ptr(), key.as_ptr()) } {
-                1 => Ok(true),
-                0 => Ok(false),
-                _ => Err(PyErr::fetch(set.py())),
-            }
-        }
-
-        let py = self.py();
-        inner(
-            self,
-            key.into_pyobject_or_pyerr(py)?.into_any().as_borrowed(),
-        )
+        self.as_any_set().contains(key)
     }
 
     fn discard<K>(&self, key: K) -> PyResult<bool>
@@ -209,6 +229,14 @@ impl<'py> PySetMethods<'py> for Bound<'py, PySet> {
     fn pop(&self) -> Option<Bound<'py, PyAny>> {
         let element = unsafe { ffi::PySet_Pop(self.as_ptr()).assume_owned_or_err(self.py()) };
         element.ok()
+    }
+
+    fn as_any_set(&self) -> &Bound<'py, PyAnySet> {
+        unsafe { self.cast_unchecked() }
+    }
+
+    fn into_any_set(self) -> Bound<'py, PyAnySet> {
+        unsafe { self.cast_into_unchecked() }
     }
 
     fn iter(&self) -> BoundSetIterator<'py> {
@@ -256,7 +284,6 @@ impl<'py> BoundSetIterator<'py> {
 impl<'py> Iterator for BoundSetIterator<'py> {
     type Item = Bound<'py, super::PyAny>;
 
-    /// Advances the iterator and returns the next value.
     fn next(&mut self) -> Option<Self::Item> {
         self.0
             .next()
@@ -364,7 +391,7 @@ mod tests {
     fn test_set_add() {
         Python::attach(|py| {
             let set = PySet::new(py, [1, 2]).unwrap();
-            set.add(1).unwrap(); // Add a duplicated element
+            set.add(1).unwrap();
             assert!(set.contains(1).unwrap());
         });
     }
@@ -439,7 +466,6 @@ mod tests {
             let set = PySet::new(py, [1]).unwrap();
             let mut iter = set.iter();
 
-            // Exact size
             assert_eq!(iter.len(), 1);
             assert_eq!(iter.size_hint(), (1, Some(1)));
             iter.next();

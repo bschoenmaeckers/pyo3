@@ -4,9 +4,9 @@ use crate::types::PyFrame;
 #[cfg(Py_3_15)]
 use crate::types::PyFrozenDict;
 use crate::types::{
-    PyAnyDict, PyBool, PyByteArray, PyBytes, PyCapsule, PyComplex, PyDict, PyFloat, PyFrozenSet,
-    PyList, PyMapping, PyMappingProxy, PyModule, PyRange, PySequence, PySet, PySlice, PyString,
-    PyTraceback, PyTuple, PyType, PyWeakref, PyWeakrefProxy, PyWeakrefReference,
+    PyAnyDict, PyAnySet, PyBool, PyByteArray, PyBytes, PyCapsule, PyComplex, PyDict, PyFloat,
+    PyFrozenSet, PyList, PyMapping, PyMappingProxy, PyModule, PyRange, PySequence, PySet, PySlice,
+    PyString, PyTraceback, PyTuple, PyType, PyWeakref, PyWeakrefProxy, PyWeakrefReference,
 };
 use crate::{ffi, Bound, PyAny, PyResult};
 
@@ -34,6 +34,7 @@ impl Sealed for Bound<'_, PyBytes> {}
 impl Sealed for Bound<'_, PyCapsule> {}
 impl Sealed for Bound<'_, PyComplex> {}
 impl Sealed for Bound<'_, PyAnyDict> {}
+impl Sealed for Bound<'_, PyAnySet> {}
 impl Sealed for Bound<'_, PyDict> {}
 impl Sealed for Bound<'_, PyFloat> {}
 #[cfg(Py_3_15)]

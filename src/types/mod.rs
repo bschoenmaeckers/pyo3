@@ -5,6 +5,7 @@
 
 pub use self::any::{PyAny, PyAnyMethods};
 pub use self::anydict::{PyAnyDict, PyAnyDictMethods};
+pub use self::anyset::{PyAnySet, PyAnySetMethods};
 pub use self::boolobject::{PyBool, PyBoolMethods};
 pub use self::bytearray::{PyByteArray, PyByteArrayMethods};
 pub use self::bytes::{PyBytes, PyBytesMethods};
@@ -267,6 +268,7 @@ macro_rules! pyobject_native_type {
 
 pub(crate) mod any;
 pub(crate) mod anydict;
+pub(crate) mod anyset;
 pub(crate) mod boolobject;
 pub(crate) mod bytearray;
 pub(crate) mod bytes;
