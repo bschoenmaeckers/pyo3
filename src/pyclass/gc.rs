@@ -22,6 +22,7 @@ use core::{
     },
 };
 use std::sync::TryLockError::{Poisoned, WouldBlock};
+#[allow(clippy::disallowed_types)]
 use std::{
     collections::{HashMap, HashSet},
     ffi::{OsStr, OsString},
@@ -364,6 +365,7 @@ unsafe impl<T: PyGcTraversable> PyGcTraversable for OnceLock<T> {
 
 // SAFETY: `Mutex<T>` provides synchronized access to one `T`; delegating through
 // the lock guard preserves traversal and clear soundness.
+#[allow(clippy::disallowed_types)]
 unsafe impl<T: PyGcTraversable> PyGcTraversable for Mutex<T> {
     const MAY_CONTAIN_CYCLES: bool = T::MAY_CONTAIN_CYCLES;
 
