@@ -85,12 +85,7 @@ fn traverse_stmts_for_struct(
 ) -> TokenStream {
     let included = fields.iter().filter(|field| field.include).map(|field| {
         let member = &field.member;
-        let ty = field.ty;
-        quote! {
-            if <#ty as #pyo3_path::pyclass::PyGcTraversable>::MAY_CONTAIN_CYCLES {
-                #pyo3_path::pyclass::PyGcTraversable::traverse(&self.#member, visit.clone())?;
-            }
-        }
+        traverse_stmt(field.ty, quote!(&self.#member), pyo3_path)
     });
 
     quote! {
@@ -105,13 +100,65 @@ fn clear_stmts_for_struct(
 ) -> TokenStream {
     let included = fields.iter().filter(|field| field.include).map(|field| {
         let member = &field.member;
-        let ty = field.ty;
-        quote! {
-            if <#ty as #pyo3_path::pyclass::PyGcTraversable>::MAY_CONTAIN_CYCLES {
-                #pyo3_path::pyclass::PyGcTraversable::clear(&mut self.#member);
-            }
-        }
+        clear_stmt(field.ty, quote!(&mut self.#member), pyo3_path)
     });
+
+    quote! {
+        #(#included)*
+    }
+}
+
+fn traverse_stmt(
+    ty: &syn::Type,
+    value: TokenStream,
+    pyo3_path: &crate::utils::PyO3CratePath,
+) -> TokenStream {
+    quote! {
+        if <#ty as #pyo3_path::pyclass::PyGcTraversable>::MAY_CONTAIN_CYCLES {
+            #pyo3_path::pyclass::PyGcTraversable::traverse(#value, visit.clone())?;
+        }
+    }
+}
+
+fn clear_stmt(
+    ty: &syn::Type,
+    value: TokenStream,
+    pyo3_path: &crate::utils::PyO3CratePath,
+) -> TokenStream {
+    quote! {
+        if <#ty as #pyo3_path::pyclass::PyGcTraversable>::MAY_CONTAIN_CYCLES {
+            #pyo3_path::pyclass::PyGcTraversable::clear(#value);
+        }
+    }
+}
+
+fn traverse_stmts_for_bindings(
+    fields: &[GcField<'_>],
+    bindings: &[syn::Ident],
+    pyo3_path: &crate::utils::PyO3CratePath,
+) -> TokenStream {
+    let included = fields
+        .iter()
+        .zip(bindings)
+        .filter(|(field, _)| field.include)
+        .map(|(field, binding)| traverse_stmt(field.ty, quote!(#binding), pyo3_path));
+
+    quote! {
+        #(#included)*
+        Ok(())
+    }
+}
+
+fn clear_stmts_for_bindings(
+    fields: &[GcField<'_>],
+    bindings: &[syn::Ident],
+    pyo3_path: &crate::utils::PyO3CratePath,
+) -> TokenStream {
+    let included = fields
+        .iter()
+        .zip(bindings)
+        .filter(|(field, _)| field.include)
+        .map(|(field, binding)| clear_stmt(field.ty, quote!(#binding), pyo3_path));
 
     quote! {
         #(#included)*
@@ -251,44 +298,28 @@ pub fn build_derive_py_gc_integration(tokens: &DeriveInput) -> Result<TokenStrea
                                     quote!(#field_ident: #binding)
                                 })
                                 .collect();
-
-                            let traverse_stmts = variant_fields
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, field)| field.include)
-                                .map(|(i, field)| {
-                                    let binding = format_ident!("field_{i}");
-                                    let ty = field.ty;
-                                    quote! {
-                                        if <#ty as #pyo3_path::pyclass::PyGcTraversable>::MAY_CONTAIN_CYCLES {
-                                            #pyo3_path::pyclass::PyGcTraversable::traverse(#binding, visit.clone())?;
-                                        }
-                                    }
-                                });
-
-                            let clear_stmts = variant_fields
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, field)| field.include)
-                                .map(|(i, field)| {
-                                    let binding = format_ident!("field_{i}");
-                                    let ty = field.ty;
-                                    quote! {
-                                        if <#ty as #pyo3_path::pyclass::PyGcTraversable>::MAY_CONTAIN_CYCLES {
-                                            #pyo3_path::pyclass::PyGcTraversable::clear(#binding);
-                                        }
-                                    }
-                                });
+                            let binding_idents: Vec<_> = (0..named.named.len())
+                                .map(|i| format_ident!("field_{i}"))
+                                .collect();
+                            let traverse_stmts = traverse_stmts_for_bindings(
+                                &variant_fields,
+                                &binding_idents,
+                                pyo3_path,
+                            );
+                            let clear_stmts = clear_stmts_for_bindings(
+                                &variant_fields,
+                                &binding_idents,
+                                pyo3_path,
+                            );
 
                             traverse_arms.push(quote! {
                                 Self::#variant_ident { #(#bindings),* } => {
-                                    #(#traverse_stmts)*
-                                    Ok(())
+                                    #traverse_stmts
                                 }
                             });
                             clear_arms.push(quote! {
                                 Self::#variant_ident { #(#bindings),* } => {
-                                    #(#clear_stmts)*
+                                    #clear_stmts
                                 }
                             });
                         }
@@ -299,44 +330,19 @@ pub fn build_derive_py_gc_integration(tokens: &DeriveInput) -> Result<TokenStrea
                                 .enumerate()
                                 .map(|(i, _)| format_ident!("field_{i}"))
                                 .collect();
-
-                            let traverse_stmts = variant_fields
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, field)| field.include)
-                                .map(|(i, field)| {
-                                    let binding = format_ident!("field_{i}");
-                                    let ty = field.ty;
-                                    quote! {
-                                        if <#ty as #pyo3_path::pyclass::PyGcTraversable>::MAY_CONTAIN_CYCLES {
-                                            #pyo3_path::pyclass::PyGcTraversable::traverse(#binding, visit.clone())?;
-                                        }
-                                    }
-                                });
-
-                            let clear_stmts = variant_fields
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, field)| field.include)
-                                .map(|(i, field)| {
-                                    let binding = format_ident!("field_{i}");
-                                    let ty = field.ty;
-                                    quote! {
-                                        if <#ty as #pyo3_path::pyclass::PyGcTraversable>::MAY_CONTAIN_CYCLES {
-                                            #pyo3_path::pyclass::PyGcTraversable::clear(#binding);
-                                        }
-                                    }
-                                });
+                            let traverse_stmts =
+                                traverse_stmts_for_bindings(&variant_fields, &bindings, pyo3_path);
+                            let clear_stmts =
+                                clear_stmts_for_bindings(&variant_fields, &bindings, pyo3_path);
 
                             traverse_arms.push(quote! {
                                 Self::#variant_ident(#(#bindings),*) => {
-                                    #(#traverse_stmts)*
-                                    Ok(())
+                                    #traverse_stmts
                                 }
                             });
                             clear_arms.push(quote! {
                                 Self::#variant_ident(#(#bindings),*) => {
-                                    #(#clear_stmts)*
+                                    #clear_stmts
                                 }
                             });
                         }
