@@ -649,21 +649,26 @@ unsafe impl<T> PyGcTraversable for Py<T> {
 /// # }
 /// ```
 ///
-/// Breaking a traversal cycle manually in a bidirectional graph:
+/// Breaking recursive links while traversing from a top-level owner:
 ///
 /// ```
+/// # #[allow(dead_code)]
 /// # #[cfg(feature = "macros")] {
 /// use std::sync::Arc;
-/// use pyo3::{Py, PyAny, PyGcOpaque, PyGcTraversable};
+/// use pyo3::{Py, PyAny, PyGcOpaque, PyGcTraversable, Python};
 ///
 /// #[derive(PyGcTraversable)]
 /// struct Node {
 ///     payload: Py<PyAny>,
-///     // Forward edges recurse through Rust-owned nodes.
-///     children: Vec<Arc<Node>>,
-///     // Back-edge is skipped here to avoid traversing the same cycle twice.
-///     // It must be reachable from another traversed path.
-///     parent: PyGcOpaque<Option<Arc<Node>>>,
+///     // Recursive links are intentionally skipped in this local traversal.
+///     children: PyGcOpaque<Vec<Arc<Node>>>,
+/// }
+///
+/// #[derive(PyGcTraversable)]
+/// struct Graph {
+///     // All nodes are traversed from here, so skipping links in `Node`
+///     // avoids recursion without losing referents.
+///     nodes: Vec<Arc<Node>>,
 /// }
 /// # }
 /// ```
