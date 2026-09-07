@@ -224,12 +224,7 @@ pub fn build_derive_py_gc_integration(tokens: &DeriveInput) -> Result<TokenStrea
         }
         syn::Data::Enum(data) => {
             if data.variants.is_empty() {
-                (
-                    Vec::new(),
-                    quote!(Ok(())),
-                    quote! {},
-                    quote!(false),
-                )
+                (Vec::new(), quote!(Ok(())), quote! {}, quote!(false))
             } else {
                 let mut all_fields = Vec::new();
                 let mut traverse_arms = Vec::new();
