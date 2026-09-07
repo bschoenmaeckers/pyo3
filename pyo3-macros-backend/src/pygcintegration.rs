@@ -1,5 +1,5 @@
 use crate::attributes::{self, get_pyo3_options, GcAttribute};
-use crate::derive_attributes::ContainerAttributes;
+use crate::derive_attributes::{ContainerAttributes, FieldAttribute};
 use crate::utils::Ctx;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
@@ -8,7 +8,7 @@ use syn::{
     parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    DeriveInput, Fields, Result, Token,
+    DeriveInput, Fields, Result,
 };
 
 struct GcField<'a> {
@@ -19,6 +19,7 @@ struct GcField<'a> {
 
 enum GcFieldAttribute {
     Gc(GcAttribute),
+    Other,
 }
 
 impl Parse for GcFieldAttribute {
@@ -28,7 +29,7 @@ impl Parse for GcFieldAttribute {
             let attr: GcAttribute = input.parse()?;
             Ok(Self::Gc(attr))
         } else {
-            Err(lookahead.error())
+            input.parse::<FieldAttribute>().map(|_| Self::Other)
         }
     }
 }
@@ -38,16 +39,14 @@ fn parse_gc_field<'a>(field: &'a syn::Field, member: syn::Member) -> Result<GcFi
     for attr in &field.attrs {
         if let Some(options) = get_pyo3_options::<GcFieldAttribute>(attr)? {
             for opt in options {
-                let GcFieldAttribute::Gc(opt) = opt;
-                ensure_spanned!(
-                    gc.is_none(),
-                    opt.span() => "`gc` may only be specified once"
-                );
-                gc = Some(opt);
+                if let GcFieldAttribute::Gc(opt) = opt {
+                    ensure_spanned!(
+                        gc.is_none(),
+                        opt.span() => "`gc` may only be specified once"
+                    );
+                    gc = Some(opt);
+                }
             }
-        } else if attr.path().is_ident("pyo3") {
-            let _ =
-                attr.parse_args_with(Punctuated::<GcFieldAttribute, Token![,]>::parse_terminated)?;
         }
     }
 
@@ -240,22 +239,6 @@ fn assertion_impl(fields: &[GcField<'_>], pyo3_path: &crate::utils::PyO3CratePat
 
 pub fn build_derive_py_gc_integration(tokens: &DeriveInput) -> Result<TokenStream> {
     let options = ContainerAttributes::from_attrs(&tokens.attrs)?;
-    ensure_spanned!(
-        options.transparent.is_none(),
-        options.transparent.span() => "`transparent` is not supported for `#[derive(PyGcTraversable)]`"
-    );
-    ensure_spanned!(
-        options.from_item_all.is_none(),
-        options.from_item_all.span() => "`from_item_all` is not supported for `#[derive(PyGcTraversable)]`"
-    );
-    ensure_spanned!(
-        options.annotation.is_none(),
-        options.annotation.span() => "`annotation` is not supported for `#[derive(PyGcTraversable)]`"
-    );
-    ensure_spanned!(
-        options.rename_all.is_none(),
-        options.rename_all.span() => "`rename_all` is not supported for `#[derive(PyGcTraversable)]`"
-    );
 
     let ctx = Ctx::new(&options.krate, None);
     let pyo3_path = &ctx.pyo3_path;
