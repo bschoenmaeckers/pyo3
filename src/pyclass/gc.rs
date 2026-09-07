@@ -623,8 +623,10 @@ unsafe impl<T> PyGcTraversable for Py<T> {
 /// Wrapper to explicitly opt out of GC traversal for a type.
 ///
 /// This is useful for intentional recursion breakpoints where traversing a
-/// reference would recurse indefinitely. Only use this when the wrapped value
-/// is known to be traversed through another path.
+/// reference would recurse indefinitely, and for making third-party types
+/// usable inside traversable containers by wrapping them as GC-opaque.
+/// Only use this when the wrapped value is known to be traversed through
+/// another path, or when the wrapped type cannot hold Python references.
 ///
 /// # Examples
 ///
