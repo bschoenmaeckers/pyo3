@@ -366,6 +366,8 @@ unsafe impl<T: PyGcTraversable> PyGcTraversable for OnceLock<T> {
     }
 }
 
+/// Note: Poisoned locks are still traversed so Python references are released
+/// even if a panic occurred while the lock was held.
 // SAFETY: `Mutex<T>` provides synchronized access to one `T`; delegating through
 // the lock guard preserves traversal and clear soundness.
 #[allow(clippy::disallowed_types)]
