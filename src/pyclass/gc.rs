@@ -500,23 +500,18 @@ where
     const MAY_CONTAIN_CYCLES: bool = T::MAY_CONTAIN_CYCLES || E::MAY_CONTAIN_CYCLES;
 
     fn traverse(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
-        if T::MAY_CONTAIN_CYCLES || E::MAY_CONTAIN_CYCLES {
-            match self {
-                Ok(value) if T::MAY_CONTAIN_CYCLES => value.traverse(visit)?,
-                Err(error) if E::MAY_CONTAIN_CYCLES => error.traverse(visit)?,
-                _ => {}
-            }
+        match self {
+            Ok(value) if T::MAY_CONTAIN_CYCLES => value.traverse(visit),
+            Err(error) if E::MAY_CONTAIN_CYCLES => error.traverse(visit),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     fn clear(&mut self) {
-        if T::MAY_CONTAIN_CYCLES || E::MAY_CONTAIN_CYCLES {
-            match self {
-                Ok(value) if T::MAY_CONTAIN_CYCLES => value.clear(),
-                Err(error) if E::MAY_CONTAIN_CYCLES => error.clear(),
-                _ => {}
-            }
+        match self {
+            Ok(value) if T::MAY_CONTAIN_CYCLES => value.clear(),
+            Err(error) if E::MAY_CONTAIN_CYCLES => error.clear(),
+            _ => {}
         }
     }
 }
@@ -592,14 +587,11 @@ where
     const MAY_CONTAIN_CYCLES: bool = T::MAY_CONTAIN_CYCLES || T::Owned::MAY_CONTAIN_CYCLES;
 
     fn traverse(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
-        if Self::MAY_CONTAIN_CYCLES {
-            match self {
-                Self::Borrowed(value) if T::MAY_CONTAIN_CYCLES => value.traverse(visit)?,
-                Self::Owned(value) if T::Owned::MAY_CONTAIN_CYCLES => value.traverse(visit)?,
-                _ => {}
-            }
+        match self {
+            Self::Borrowed(value) if T::MAY_CONTAIN_CYCLES => value.traverse(visit),
+            Self::Owned(value) if T::Owned::MAY_CONTAIN_CYCLES => value.traverse(visit),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     fn clear(&mut self) {
